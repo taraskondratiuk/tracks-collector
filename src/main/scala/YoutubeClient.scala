@@ -8,8 +8,8 @@ trait YoutubeClient {
   val YOUTUBE_API_KEY: String
   val YOUTUBE_PLAYLIST_ID: String
 
-  case class PlaylistItemsPage(items: Seq[Item], nextPageToken: Option[String])
-  case class Item(contentDetails: ContentDetails)
+  case class PlaylistItemsPage(items: Seq[YtItem], nextPageToken: Option[String])
+  case class YtItem(contentDetails: ContentDetails)
   case class ContentDetails(videoId: String)
   @tailrec
   private def getVideoUrlsFromPlaylist(pageToken: Option[String] = None, acc: Seq[String] = Seq.empty): Seq[String] = {

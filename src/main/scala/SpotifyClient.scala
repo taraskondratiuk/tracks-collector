@@ -19,8 +19,8 @@ trait SpotifyClient {
       .getOrElse(throw new Exception(s"failed to get token: $response"))
   }
 
-  case class TracksPage(items: Seq[Item], next: Option[String])
-  case class Item(track: Track)
+  case class TracksPage(items: Seq[SpotifyItem], next: Option[String])
+  case class SpotifyItem(track: Track)
   case class Track(external_urls: ExternalUrls)
   case class ExternalUrls(spotify: String)
   @tailrec
