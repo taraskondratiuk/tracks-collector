@@ -34,6 +34,9 @@ docker run --rm -v "$SONG_INFO_DIR":/tracks-info \
   -e YOUTUBE_PLAYLIST_ID="$YOUTUBE_PLAYLIST_ID" \
   tracks-collector
 
+mkdir tracks
+export TRACKS_DIR=tracks
+
 for file in $(diff -q "$SONG_INFO_DIR" "$SONG_INFO_SAVED_DIR" | grep "$SONG_INFO_SAVED_DIR" | grep -E "^Only in*" | sed -n 's/[^:]*: //p')
 do
   while IFS= read -r trackUrl
@@ -56,5 +59,7 @@ for x in *.m4a; do mv "$x" "${x%.m4a}.mp3"; done
 for track in $(ls)
 do
   telegram-cli -W -e "send_audio $MUSIC_CHANNEL $track"
-  rm "$track"
 done
+cd ..
+sudo rm "$TRACKS_DIR" -r
+unset TRACKS_DIR
