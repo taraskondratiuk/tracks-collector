@@ -40,8 +40,8 @@ do
   do
     if [[ "$trackUrl" == *spotify* ]]; then
      docker run --rm -v "$TRACKS_DIR"":/root/.local/share/Savify/downloads" \
-           -e SPOTIPY_CLIENT_ID="$SPOTIPY_CLIENT_ID" \
-           -e SPOTIPY_CLIENT_SECRET="$SPOTIPY_CLIENT_SECRET" \
+           -e SPOTIPY_CLIENT_ID="$SPOTIFY_CLIENT_ID" \
+           -e SPOTIPY_CLIENT_SECRET="$SPOTIFY_CLIENT_SECRET" \
              savify -q best "$trackUrl"
     fi
     if [[ $"$trackUrl" == *youtube* ]]; then
