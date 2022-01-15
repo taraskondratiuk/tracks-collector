@@ -10,9 +10,10 @@ if [[ "$(docker images -q savify 2> /dev/null)" == "" ]]; then
   rm savify -r
 fi
 
-if ! command -v youtube-dl &> /dev/null
+if ! command -v yt-dlp &> /dev/null
 then
-  sudo apt install --assume-yes youtube-dl
+  python3 -m pip install -U yt-dlp
+  export PATH=$PATH:~/.local/bin
 fi
 
 if ! command -v telegram-cli &> /dev/null
@@ -38,7 +39,7 @@ do
              savify -q best "$trackUrl"
     fi
     if [[ $"$trackUrl" == *youtube* ]]; then
-      youtube-dl -f 'bestaudio[ext=m4a]' --output "$TRACKS_DIR"
+      yt-dlp -f 'bestaudio[ext=m4a]' --output "$TRACKS_DIR"
     fi
   done < "$SONG_INFO_DIR"/"$file"
   cp "$SONG_INFO_DIR"/"$file" "$SONG_INFO_SAVED_DIR"
