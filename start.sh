@@ -45,10 +45,10 @@ do
   cp "$SONG_INFO_DIR"/"$file" "$SONG_INFO_SAVED_DIR"
 done
 
-cd "$TRACKS_DIR"
+cd "$TRACKS_DIR" || exit 2
 for x in *.m4a; do mv "$x" "${x%.m4a}.mp3"; done
 for track in $(ls)
 do
   telegram-cli -W -e "send_audio $MUSIC_CHANNEL $track"
-  rm track
+  rm "$track"
 done
