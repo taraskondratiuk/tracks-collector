@@ -26,7 +26,13 @@ then
   sudo snap install telegram-cli
 fi
 
-docker run --rm -v "$SONG_INFO_DIR":/tracks-info tracks-collector
+docker run --rm -v "$SONG_INFO_DIR":/tracks-info \
+  -e SPOTIPY_CLIENT_ID="$SPOTIPY_CLIENT_ID" \
+  -e SPOTIPY_CLIENT_SECRET="$SPOTIPY_CLIENT_SECRET" \
+  -e SPOTIPY_PLAYLIST_ID="$SPOTIPY_PLAYLIST_ID" \
+  -e YOUTUBE_API_KEY="$YOUTUBE_API_KEY" \
+  -e YOUTUBE_PLAYLIST_ID="$YOUTUBE_PLAYLIST_ID" \
+  tracks-collector
 
 for file in $(diff -q "$SONG_INFO_DIR" "$SONG_INFO_SAVED_DIR" | grep "$SONG_INFO_SAVED_DIR" | grep -E "^Only in*" | sed -n 's/[^:]*: //p')
 do
