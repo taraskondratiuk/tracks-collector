@@ -13,7 +13,7 @@ class PersistenceClientSpec extends AnyFlatSpec {
     override val YOUTUBE_API_KEY: String = sys.env("YOUTUBE_API_KEY")
     override val YOUTUBE_PLAYLIST_ID: String = sys.env("YOUTUBE_PLAYLIST_ID")
   }
-  
+
   "persistence client" should "save tracks info" in {
     val allTracks = spotifyClient.getSpotifyTrackUrlsFromPlaylist ++ youtubeClient.getYoutubeVideoUrlsFromPlaylist
     persistenceClient.addUrlsToSave(allTracks)

@@ -6,7 +6,7 @@ ADD . /tracks-collector/
 
 WORKDIR /tracks-collector
 
-ENV PERSISTENCE_INFO_DIR "tracks-info"
+ENV PERSISTENCE_INFO_DIR "/tracks-info"
 
 ENV YOUTUBE_API_KEY ""
 
