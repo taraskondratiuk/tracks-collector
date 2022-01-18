@@ -64,7 +64,7 @@ docker run --rm -v "$SONG_INFO_DIR":/tracks-info \
 mkdir tracks
 export TRACKS_DIR=tracks
 
-for file in $(diff -q "$SONG_INFO_DIR" "$SONG_INFO_SAVED_DIR" | grep "$SONG_INFO_SAVED_DIR" | grep -E "^Only in*" | sed -n 's/[^:]*: //p')
+for file in $(diff -q "$SONG_INFO_DIR" "$SONG_INFO_SAVED_DIR" | grep "$SONG_INFO_DIR" | grep -E "^Only in*" | sed -n 's/[^:]*: //p')
 do
   while IFS= read -r trackUrl
   do
