@@ -23,7 +23,7 @@ trait YoutubeClient {
       )).asString
     val playlistItemsPage = parse(response.body).flatMap(json => json.as[PlaylistItemsPage])
       .fold(err => throw new Exception(s"failed to get playlist items page, error: $err, response: $response"), page => page)
-    val allVideoUrls = acc ++ playlistItemsPage.items.map(_.contentDetails.videoId).map(id => s"https://www.youtube.com/$id")
+    val allVideoUrls = acc ++ playlistItemsPage.items.map(_.contentDetails.videoId).map(id => s"https://www.youtube.com/watch?v=$id")
     playlistItemsPage.nextPageToken match {
       case None           => allVideoUrls
       case Some(nextPage) => getVideoUrlsFromPlaylist(Some(nextPage), allVideoUrls)
