@@ -76,7 +76,7 @@ do
              savify -q best "$trackUrl"
     fi
     if [[ $"$trackUrl" == *youtube* ]]; then
-      yt-dlp -f 'bestaudio[ext=m4a]' --output "$TRACKS_DIR"
+      yt-dlp -f 'bestaudio[ext=m4a]' --output "$TRACKS_DIR" "$trackUrl"
     fi
   done < "$SONG_INFO_DIR"/"$file"
   cp "$SONG_INFO_DIR"/"$file" "$SONG_INFO_SAVED_DIR"
