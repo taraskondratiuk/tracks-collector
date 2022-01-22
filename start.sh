@@ -32,12 +32,12 @@ if [[ -z "$SONG_INFO_SAVED_DIR" ]]; then
 fi
 
 if [[ "$(docker images -q tracks-collector 2> /dev/null)" == "" ]]; then
-  echo "----------building tracks-collector img----------"
+  echo "----------$(date +"%T") building tracks-collector img----------"
   docker build . -t tracks-collector
 fi
 
 if [[ "$(docker images -q savify 2> /dev/null)" == "" ]]; then
-  echo "----------building savify----------"
+  echo "----------$(date +"%T") building savify----------"
   git clone git@github.com:LaurenceRawlings/savify.git
   cd savify || exit 1
   docker build . -t savify
@@ -47,12 +47,12 @@ fi
 
 if ! command -v yt-dlp &> /dev/null
 then
-  echo "----------installing yt-dlp----------"
+  echo "----------$(date +"%T") installing yt-dlp----------"
   python3 -m pip install -U yt-dlp
   export PATH=$PATH:~/.local/bin
 fi
 
-echo "----------running track collector----------"
+echo "----------$(date +"%T") running track collector----------"
 docker run --rm -v "$SONG_INFO_DIR":/tracks-info \
   -e SPOTIFY_CLIENT_ID="$SPOTIFY_CLIENT_ID" \
   -e SPOTIFY_CLIENT_SECRET="$SPOTIFY_CLIENT_SECRET" \
@@ -62,13 +62,14 @@ docker run --rm -v "$SONG_INFO_DIR":/tracks-info \
   tracks-collector
 
 mkdir tracks
-export TRACKS_DIR=tracks
+chmod 777 tracks
+export TRACKS_DIR=$PWD/tracks
 
 for file in $(diff -q "$SONG_INFO_DIR" "$SONG_INFO_SAVED_DIR" | grep "$SONG_INFO_DIR" | grep -E "^Only in*" | sed -n 's/[^:]*: //p')
 do
   while IFS= read -r trackUrl
   do
-    echo "----------downloading $trackUrl----------"
+    echo "----------$(date +"%T") downloading $trackUrl----------"
     if [[ "$trackUrl" == *spotify* ]]; then
      docker run --rm -v "$TRACKS_DIR"":/root/.local/share/Savify/downloads" \
            -e SPOTIPY_CLIENT_ID="$SPOTIFY_CLIENT_ID" \
@@ -76,7 +77,7 @@ do
              savify -q best "$trackUrl"
     fi
     if [[ $"$trackUrl" == *youtube* ]]; then
-      yt-dlp -f 'bestaudio[ext=m4a]' --output "$TRACKS_DIR" "$trackUrl"
+      yt-dlp -f 'bestaudio[ext=m4a]' --output "$TRACKS_DIR/%(title)s.mp3" "$trackUrl"
     fi
   done < "$SONG_INFO_DIR"/"$file"
   cp "$SONG_INFO_DIR"/"$file" "$SONG_INFO_SAVED_DIR"
@@ -84,18 +85,13 @@ done
 
 cd "$TRACKS_DIR" || exit 2
 
-if ls *.m4a &>/dev/null
-then
-  for x in *.m4a; do mv "$x" "${x%.m4a}.mp3"; done
-fi
-
 for track in $(ls)
 do
-  echo "----------sending $track to telegram----------"
+  echo "----------$(date +"%T") sending $track to telegram----------"
   telegram-cli -W -e "send_audio $MUSIC_CHANNEL $track"
 done
 cd ..
-rm "$TRACKS_DIR" -rf
+# rm "$TRACKS_DIR" -rf
 unset TRACKS_DIR
 
-echo "----------script finished----------"
+echo "----------$(date +"%T") script finished----------"
