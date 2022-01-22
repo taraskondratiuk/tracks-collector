@@ -89,7 +89,7 @@ do
   telegram-cli -W -e "send_audio $MUSIC_CHANNEL '$track'"
 done
 
-# rm "$TRACKS_DIR" -rf
+rm "$TRACKS_DIR" -rf
 unset TRACKS_DIR
 
 echo "----------$(date +"%T") script finished----------"
