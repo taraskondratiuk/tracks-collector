@@ -83,7 +83,7 @@ do
   cp "$SONG_INFO_DIR"/"$file" "$SONG_INFO_SAVED_DIR"
 done
 
-for track in $TRACKS_DIR
+for track in $TRACKS_DIR/*
 do
   echo "----------$(date +"%T") sending $track to telegram----------"
   telegram-cli -W -e "send_audio $MUSIC_CHANNEL '$track'"
