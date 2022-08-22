@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package bot;
+
+message TrackRequest {
+  string pathToTrack = 1;
+}
+
+message TrackResponse {
+  string errorMessage = 1;
+}
+
+service BotService {
+  rpc sendTrack(TrackRequest) returns (TrackResponse);
+}
