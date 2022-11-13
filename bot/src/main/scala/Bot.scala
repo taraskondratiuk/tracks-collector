@@ -122,10 +122,10 @@ class Bot(token: String,
 
   override def processNonCommandUpdate(update: Update): Unit = ()
 
-  def sendTrack(trackPath: String): Unit = {
+  def sendTrack(trackPath: String, chatId: String): Unit = {
     val sendTrack = new SendAudio()
     sendTrack.setAudio(new InputFile(new File(trackPath)))
-    sendTrack.setChatId(persistenceClient.getChatIdFromTrackPath(trackPath))
+    sendTrack.setChatId(chatId)
     this.execute(sendTrack)
   }
 }

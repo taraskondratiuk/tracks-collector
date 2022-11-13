@@ -107,8 +107,4 @@ class PersistenceClient(persistenceInfoDir: String) {
   def chatSubdir(persistenceInfoDir: String, chatId: String): String = {
     s"$persistenceInfoDir/$chatId"
   }
-
-  def getChatIdFromTrackPath(trackPath: String): String = {
-    ???
-  }
 }
