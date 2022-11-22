@@ -1,19 +1,24 @@
 ### Prerequisites
 install docker
 
+install pip
+```
+apt install python3-pip
+```
 set env vars
 ```shell
 export SPOTIFY_CLIENT_ID=
 export SPOTIFY_CLIENT_SECRET=
-export SPOTIFY_PLAYLIST_ID=
 export YOUTUBE_API_KEY=
-export YOUTUBE_PLAYLIST_ID=
-# dir for song links to be downloaded 
-export SONG_INFO_DIR=
+# writeable empty dir
+export PERSISTENCE_DIR=
+# any free port
+export TRACKS_COLLECTOR_BOT_PORT=
+# your telegram bot token
+export TRACKS_COLLECTOR_BOT_TOKEN=
 ```
 ### Run
 
 ```shell
-docker run --rm 
-bash start.sh #add scheduler
+bash start.sh
 ```

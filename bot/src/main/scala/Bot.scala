@@ -107,7 +107,6 @@ class Bot(token: String,
   register(new BotCommand("list", "list") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
       val addedPlaylists = persistenceClient.listPlaylists(chat.getId.toString)
-      println(chat.getId)
       if (addedPlaylists.nonEmpty) {
         absSender.execute[Message, SendMessage](
           new SendMessage(chat.getId.toString, addedPlaylists.map(_.playlistUrl).mkString("\n"))

@@ -13,10 +13,10 @@ import scala.io.Source
 class PersistenceClient(persistenceInfoDir: String) {
 
   def getAlreadySavedUrls(chatId: String): Seq[String] = {
-    val dir =  new File(chatSubdir(persistenceInfoDir, chatId))
+    val dir = new File(s"${chatSubdir(persistenceInfoDir, chatId)}/should_be_saved")
 
     if (dir.exists() && dir.isDirectory) {
-      dir.listFiles().filter(_.isFile).toSeq.flatMap { file =>
+      dir.listFiles().filter(_.isFile).toSeq.maxByOption(_.getName).toSeq.flatMap { file =>
         val src = Source.fromFile(file)
         val urls = src.getLines().toSeq
         src.close()
@@ -29,16 +29,24 @@ class PersistenceClient(persistenceInfoDir: String) {
     val newUrls = allUrls diff getAlreadySavedUrls(chatId)
     if (newUrls.nonEmpty) {
       val dtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss")
-      val file = new File(s"$persistenceInfoDir/${java.time.LocalDateTime.now().format(dtFormatter)}.txt")
+      val shouldBeSavedDir = s"$persistenceInfoDir/$chatId/should_be_saved"
+      val file = new File(s"$shouldBeSavedDir/${java.time.LocalDateTime.now().format(dtFormatter)}.txt")
+      file.getParentFile.mkdirs
+
+      val savedDir = s"$persistenceInfoDir/$chatId/saved"
+      new File(savedDir).mkdirs
+
       val bw = new BufferedWriter(new FileWriter(file))
       bw.write(newUrls.mkString("\n"))
+      bw.write("\n")
       bw.close()
     }
   }
 
   def addPlaylist(playlist: Playlist, chatId: String): Unit = {
-    val file = new File(playlistFile(persistenceInfoDir, chatId))
-    file.getParentFile.mkdirs()
+    val path = playlistFile(persistenceInfoDir, chatId)
+    val file = new File(path)
+    file.getParentFile.mkdirs
 
     val playlists = getPlaylistsFromFile(file)
     if (!playlists.map(_.playlistId).contains(playlist.playlistId)) {

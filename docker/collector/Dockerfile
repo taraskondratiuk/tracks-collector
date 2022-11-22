@@ -1,26 +1,29 @@
-FROM hseeberger/scala-sbt:8u312_1.6.1_2.13.8
+FROM hseeberger/scala-sbt:11.0.13_1.6.1_2.13.8
 
 RUN mkdir tracks-info
+
+RUN chmod 777 tracks-info
 
 ADD . /tracks-collector/
 
 WORKDIR /tracks-collector
 
-ENV PERSISTENCE_INFO_DIR "/tracks-info"
+ENV PERSISTENCE_DIR "/tracks-info"
 
 ENV YOUTUBE_API_KEY ""
-
-ENV YOUTUBE_PLAYLIST_ID ""
 
 ENV SPOTIFY_CLIENT_ID ""
 
 ENV SPOTIFY_CLIENT_SECRET ""
 
-ENV SPOTIFY_PLAYLIST_ID ""
+RUN sbt collector/compile
 
-RUN sbt compile
+CMD ["sbt", "collector/run"]
 
-CMD ["sbt", "run"]
-
-# docker build  . -t tracks-collector
-# docker run --rm -v <path to tracks info dir>:/tracks-info tracks-collector
+# docker build  . -f docker/collector/Dockerfile -t tracks-collector
+# docker run --rm -v <path to tracks info dir>:/tracks-info \
+#  -e SPOTIFY_CLIENT_ID="<spotify client id>" \
+#  -e SPOTIFY_CLIENT_SECRET="<spotify client secret>" \
+#  -e YOUTUBE_API_KEY="<youtube api key>" \
+#  --name tracks-collector \
+#  tracks-collector
