@@ -18,7 +18,11 @@ export TRACKS_COLLECTOR_BOT_PORT=
 export TRACKS_COLLECTOR_BOT_TOKEN=
 ```
 ### Run
-
+edit root crontab file
 ```shell
-bash start.sh
+sudo crontab -e
+```
+add line
+```shell
+0 * * * * $(cd <path to tracks-collector dir> && flock -n /tmp/collector.lockfile bash prekol.sh >> <path to logfile>
 ```
