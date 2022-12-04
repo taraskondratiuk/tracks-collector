@@ -3,9 +3,10 @@ import io.circe.parser
 import org.telegram.telegrambots.meta.TelegramBotsApi
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession
 
-import java.nio.file.{Files, Paths}
+import java.io.{File, PrintWriter}
 import java.util.concurrent.Executors
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Using
 
 object Main extends cask.MainRoutes {
 
@@ -27,9 +28,11 @@ object Main extends cask.MainRoutes {
   def sendTrack(req: cask.Request): Unit = {
     import io.circe.generic.auto._
     val res = for {
-      json   <- parser.parse(req.text())
-      reqObj <- json.as[SendTrackRequest]
-      _      = sendTrackFuture(reqObj.trackPath, reqObj.chatId)
+      json     <- parser.parse(req.text())
+      reqObj   <- json.as[SendTrackRequest]
+      lockFile = new File(s"${reqObj.trackPath}.lock")
+      _        = Using(new PrintWriter(lockFile))(pw => pw.write(System.currentTimeMillis().toString))
+      _        = sendTrackFuture(reqObj.trackPath, reqObj.chatId).onComplete(_ => lockFile.delete())
     } yield ()
     res.left.foreach(e => throw e)
   }

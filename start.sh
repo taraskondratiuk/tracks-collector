@@ -1,3 +1,4 @@
+#!/bin/bash
 echo "----------$(date +"%T") script start----------"
 
 if [[ -z "$SPOTIFY_CLIENT_ID" ]]; then
@@ -44,11 +45,9 @@ if [[ "$(docker images -q savify 2> /dev/null)" == "" ]]; then
   rm savify -rf
 fi
 
-sudo mkdir -p tracks
-sudo chmod 777 tracks
+mkdir -p tracks
+chmod 777 tracks
 export TRACKS_DIR=$PWD/tracks
-rm "$TRACKS_DIR/*" -rf
-
 export PATH=$PATH:~/.local/bin
 if ! command -v yt-dlp &> /dev/null
 then
@@ -81,7 +80,7 @@ docker run --rm -d -v "$PERSISTENCE_DIR":/tracks-info \
 
 docker wait tracks-collector
 
-sudo chmod 777 -R $PERSISTENCE_DIR
+chmod 777 -R $PERSISTENCE_DIR
 for chatIdDir in $(ls "$PERSISTENCE_DIR")
 do
   echo "---------sending tracks for chat id $chatIdDir----------"
@@ -106,18 +105,24 @@ do
     cp "$PERSISTENCE_DIR/$chatIdDir/should_be_saved/$file" "$PERSISTENCE_DIR/$chatIdDir/saved"
   done
 
-  sudo chmod 777 -R $TRACKS_DIR
+  chmod 777 -R $TRACKS_DIR
   for track in $TRACKS_DIR/$chatIdDir/*
   do
     test -f "$track" || continue
-    echo "$track" | sed 's:.*/::'
+    [[ "$track" =~ .*lock ]] && continue
     trackFile=$(echo "$track" | sed 's:.*/::')
     echo "----------$(date +"%T") sending $trackFile to telegram chat id $chatIdDir----------"
     curl -X POST -d '{"chatId": "'"$chatIdDir"'", "trackPath": "'"/tracks/$chatIdDir/$trackFile"'"}' localhost:$TRACKS_COLLECTOR_BOT_PORT/sendTrack
   done
 
+  while [[ $(find $TRACKS_DIR/$chatIdDir -name *.lock) ]]
+  do
+    echo "----------$(date +"%T") lock files present----------"
+    sleep 5
+  done
 done
 
+rm "$TRACKS_DIR" -rf
 unset TRACKS_DIR
 
 echo "----------$(date +"%T") script finished----------"
