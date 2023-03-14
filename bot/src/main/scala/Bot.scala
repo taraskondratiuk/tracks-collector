@@ -32,7 +32,7 @@ class Bot(token: String,
       absSender.execute[Message, SendMessage](
         new SendMessage(
           chat.getId.toString,
-          "/add <Spotify/Youtube playlist url>\n/remove <spotify/youtube playlist url>\n/list"
+          "/add <Spotify/Youtube playlist url>\n/remove <Spotify/Youtube playlist url>\n/list "
         )
       )
     }
