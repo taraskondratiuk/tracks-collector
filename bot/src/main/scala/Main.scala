@@ -4,9 +4,9 @@ import org.telegram.telegrambots.meta.TelegramBotsApi
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession
 
 import java.io.{File, PrintWriter}
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, Semaphore}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Using
+import scala.util.{Failure, Success, Using}
 
 object Main extends cask.MainRoutes {
 
@@ -24,6 +24,8 @@ object Main extends cask.MainRoutes {
 
   override def host: String = "0.0.0.0"
 
+  private val s = new Semaphore(19) //limit for bot messages is 20 per chat per minute
+
   @cask.post("/sendTrack")
   def sendTrack(req: cask.Request): Unit = {
     import io.circe.generic.auto._
@@ -40,7 +42,19 @@ object Main extends cask.MainRoutes {
   val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
 
   def sendTrackFuture(trackPath: String, chatId: String): Future[Unit] = {
-    Future(bot.sendTrack(trackPath, chatId))(ec)
+    val res = Future {
+      s.acquire()
+      bot.sendTrack(trackPath, chatId)
+      Thread.sleep(1000 * 60)
+    }
+    res.onComplete {
+      case Success(_) =>
+        s.release()
+      case Failure(e) =>
+        s.release()
+        println(s"failed to send track $trackPath: ${e.getMessage}")
+    }
+    res
   }
 
   initialize()
