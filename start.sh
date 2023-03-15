@@ -38,7 +38,6 @@ fi
 
 if [[ "$(docker images -q savify 2> /dev/null)" == "" ]]; then
   echo "----------$(date +"%T") building savify----------"
-  ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
   git clone https://github.com/LaurenceRawlings/savify.git
   cd savify || exit 1
   docker build . -t savify
