@@ -48,7 +48,7 @@ fi
 mkdir -p tracks
 chmod 777 tracks
 export TRACKS_DIR=$PWD/tracks
-rm "$TRACKS_DIR" -rf
+rm "$TRACKS_DIR"/* -rf
 export PATH=$PATH:~/.local/bin
 if ! command -v yt-dlp &> /dev/null
 then
