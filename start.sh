@@ -48,7 +48,6 @@ fi
 mkdir -p tracks
 chmod 777 tracks
 export TRACKS_DIR=$PWD/tracks
-rm "$TRACKS_DIR"/* -rf
 export PATH=$PATH:~/.local/bin
 if ! command -v yt-dlp &> /dev/null
 then
@@ -114,6 +113,7 @@ do
     trackFile=$(echo "$track" | sed 's:.*/::')
     echo "----------$(date +"%T") sending $trackFile to telegram chat id $chatIdDir----------"
     curl -X POST -d '{"chatId": "'"$chatIdDir"'", "trackPath": "'"/tracks/$chatIdDir/$trackFile"'"}' localhost:$TRACKS_COLLECTOR_BOT_PORT/sendTrack
+    sleep 1
   done
 
   while [[ $(find $TRACKS_DIR/$chatIdDir -name *.lock) ]]
@@ -123,6 +123,7 @@ do
   done
 done
 
+rm "$TRACKS_DIR"/* -rf
 unset TRACKS_DIR
 
 echo "----------$(date +"%T") script finished----------"
