@@ -48,6 +48,7 @@ fi
 mkdir -p tracks
 chmod 777 tracks
 export TRACKS_DIR=$PWD/tracks
+rm "$TRACKS_DIR" -rf
 export PATH=$PATH:~/.local/bin
 if ! command -v yt-dlp &> /dev/null
 then
@@ -94,7 +95,7 @@ do
          docker run --rm -v "$TRACKS_DIR/$chatIdDir"":/root/.local/share/Savify/downloads" \
                -e SPOTIPY_CLIENT_ID="$SPOTIFY_CLIENT_ID" \
                -e SPOTIPY_CLIENT_SECRET="$SPOTIFY_CLIENT_SECRET" \
-               --name savify-"$1" \
+               --name savify \
                  savify -q best "$trackUrl"
         fi
         if [[ $"$trackUrl" == *youtube* ]]; then
@@ -122,7 +123,6 @@ do
   done
 done
 
-rm "$TRACKS_DIR" -rf
 unset TRACKS_DIR
 
 echo "----------$(date +"%T") script finished----------"
