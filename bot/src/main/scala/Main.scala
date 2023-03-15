@@ -39,14 +39,14 @@ object Main extends cask.MainRoutes {
     res.left.foreach(e => throw e)
   }
 
-  val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+  private val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
 
   def sendTrackFuture(trackPath: String, chatId: String): Future[Unit] = {
     val res = Future {
       s.acquire()
       bot.sendTrack(trackPath, chatId)
       Thread.sleep(1000 * 60)
-    }
+    }(ec)
     res.onComplete {
       case Success(_) =>
         s.release()
