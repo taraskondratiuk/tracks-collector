@@ -16,7 +16,7 @@ class PersistenceClient(persistenceInfoDir: String) {
     val dir = new File(s"${chatSubdir(persistenceInfoDir, chatId)}/should_be_saved")
 
     if (dir.exists() && dir.isDirectory) {
-      dir.listFiles().filter(_.isFile).toSeq.maxByOption(_.getName).toSeq.flatMap { file =>
+      dir.listFiles().filter(_.isFile).toSeq.flatMap { file =>
         val src = Source.fromFile(file)
         val urls = src.getLines().toSeq
         src.close()
