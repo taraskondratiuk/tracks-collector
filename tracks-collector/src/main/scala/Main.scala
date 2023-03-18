@@ -15,6 +15,11 @@ import scala.concurrent.ExecutionContext
 
 object Main extends IOApp {
 
+  private val SPOTIFY_CLIENT_ID     = sys.env("SPOTIFY_CLIENT_ID")
+  private val SPOTIFY_CLIENT_SECRET = sys.env("SPOTIFY_CLIENT_SECRET")
+  private val YOUTUBE_API_KEY       = sys.env("YOUTUBE_API_KEY")
+  private val MONGO_URI             = sys.env("MONGO_URI")
+
   private val log = Logger(this.getClass.getSimpleName)
 
   private val ec = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
@@ -39,10 +44,10 @@ object Main extends IOApp {
     }
     val res = for {
       semaphore         <- Semaphore[IO](1)
-      spotifyClient     = new SpotifyClient(sys.env("SPOTIFY_CLIENT_ID"), sys.env("SPOTIFY_CLIENT_SECRET"))
-      youtubeClient     = new YoutubeClient(sys.env("YOUTUBE_API_KEY"))
-      persistenceClient = new MongoPersistenceClient(sys.env("MONGO_URI"))
-      downloader        = new TracksDownloader
+      spotifyClient     = new SpotifyClient(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
+      youtubeClient     = new YoutubeClient(YOUTUBE_API_KEY)
+      persistenceClient = new MongoPersistenceClient(MONGO_URI)
+      downloader        = new TracksDownloader(SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET)
       bot               = botInit(spotifyClient, youtubeClient, persistenceClient)
       tracksCollector   = new TracksCollector(
         spotifyClient,

@@ -1,4 +1,3 @@
-# todo add spotify support
 FROM hseeberger/scala-sbt:11.0.13_1.6.1_2.13.8
 
 RUN apt-get update
@@ -8,6 +7,8 @@ RUN apt-get install python3 -y
 RUN apt-get install python3-pip -y
 
 RUN python3 -m pip install -U yt-dlp
+
+RUN python3 -m pip install -U savify
 
 RUN mkdir "/tracks-collector-log"
 
