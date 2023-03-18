@@ -3,15 +3,16 @@ package clients
 import io.circe.parser.parse
 import models.{Playlist, SpotifySource}
 import scalaj.http.{Base64, Http, HttpResponse}
+import utils.DateUtil
 import validators.UrlValidator
 
 import scala.annotation.tailrec
 
 class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extends UrlValidator {
 
-  def getSpotifyTrackUrlsFromPlaylist(playlistId: String): Seq[String] = {
+  def getSpotifyTrackUrlsFromPlaylist(playlistId: String, fromTs: Long): Seq[String] = {
     val accessToken = getAccessToken
-    getTrackUrlsFromPlaylist(accessToken, playlistId)
+    getTrackUrlsFromPlaylist(accessToken, playlistId, fromTs)
   }
 
   override def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
@@ -42,7 +43,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
 
   case class TracksPage(items: Seq[SpotifyItem], next: Option[String])
 
-  case class SpotifyItem(track: Track)
+  case class SpotifyItem(track: Track, added_at: String)
 
   case class Track(external_urls: ExternalUrls)
 
@@ -51,6 +52,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
   @tailrec
   private def getTrackUrlsFromPlaylist(accessToken: String,
                                        playlistId: String,
+                                       fromTs: Long = 0,
                                        pageUrl: Option[String] = None,
                                        acc: Seq[String] = Seq.empty,
                                        onlyFirstPage: Boolean = false,
@@ -62,11 +64,14 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
     import io.circe.generic.auto._
     val tracksPage = parse(response.body).flatMap(json => json.as[TracksPage])
       .fold(err => throw new Exception(s"failed to get tracks page, error: $err, response: $response"), page => page)
-    val allTrackUrls = acc ++ tracksPage.items.map(_.track.external_urls.spotify)
+    val allTrackUrls = acc ++ tracksPage
+      .items
+      .filter(v => DateUtil.stringDateToEpochSecond(v.added_at) >= fromTs)
+      .map(_.track.external_urls.spotify)
     tracksPage.next match {
       case None               => allTrackUrls
       case _ if onlyFirstPage => allTrackUrls
-      case Some(nextPage)     => getTrackUrlsFromPlaylist(accessToken, playlistId, Some(nextPage), allTrackUrls)
+      case Some(nextPage)     => getTrackUrlsFromPlaylist(accessToken, playlistId, fromTs, Some(nextPage), allTrackUrls)
     }
   }
 }

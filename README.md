@@ -1,17 +1,12 @@
-### Prerequisites
-install docker
-
-install pip
-```
-apt install python3-pip
-```
-### Run
-edit crontab file
+# Telegram bot to download tracks from YouTube/Spotify playlists
+## Run
 ```shell
-sudo crontab -e
-```
-add lines
-```shell
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/snap/bin
-0 * * * * export SPOTIFY_CLIENT_ID= && export SPOTIFY_CLIENT_SECRET= && export YOUTUBE_API_KEY= && export PERSISTENCE_DIR=<writeable empty dir> && export TRACKS_COLLECTOR_BOT_PORT=<any free port> && export TRACKS_COLLECTOR_BOT_TOKEN=<telegram bot token> && cd <path to tracks-collector dir> && flock -n /tmp/collector.lockfile ./start.sh >> <path to logfile> 2>&1
+docker-compose build
+LOGS_VOLUME= \
+  MONGO_VOLUME= \
+  SPOTIFY_CLIENT_ID= \
+  SPOTIFY_CLIENT_SECRET= \
+  YOUTUBE_API_KEY= \
+  TRACKS_COLLECTOR_BOT_TOKEN= \
+  docker-compose up -d 
 ```

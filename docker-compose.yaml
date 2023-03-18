@@ -1,0 +1,44 @@
+version: "3"
+
+services:
+  tracks-collector:
+    build: .
+    environment:
+      - SPOTIFY_CLIENT_ID=$SPOTIFY_CLIENT_ID
+      - SPOTIFY_CLIENT_SECRET=$SPOTIFY_CLIENT_SECRET
+      - YOUTUBE_API_KEY=$YOUTUBE_API_KEY
+      - TRACKS_COLLECTOR_BOT_TOKEN=$TRACKS_COLLECTOR_BOT_TOKEN
+      - MONGO_URI=mongo:27017
+    image:
+      tracks-collector:latest
+    container_name:
+      tracks-collector
+    restart:
+      unless-stopped
+    networks:
+      - tracks-collector-net
+    depends_on:
+      - mongodb
+    volumes:
+      - $LOGS_VOLUME:/tracks-collector-log
+
+  mongodb:
+    image:
+      mongo:6.0.5
+    container_name:
+      mongodb-tracks-collector
+    environment:
+      - MONGO_INITDB_DATABASE=tracks-collector-db
+    hostname:
+      mongo
+    restart:
+      unless-stopped
+    networks:
+      - tracks-collector-net
+    volumes:
+      - $MONGO_VOLUME:/data/db
+    ports:
+      - '27017-27019:27017-27019'
+
+networks:
+  tracks-collector-net:

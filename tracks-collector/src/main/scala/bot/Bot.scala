@@ -1,8 +1,11 @@
+package bot
+
+
 import clients.{PersistenceClient, SpotifyClient, YoutubeClient}
 import org.telegram.telegrambots.extensions.bots.commandbot.TelegramLongPollingCommandBot
 import org.telegram.telegrambots.extensions.bots.commandbot.commands.BotCommand
 import org.telegram.telegrambots.meta.api.methods.send.{SendAudio, SendMessage}
-import org.telegram.telegrambots.meta.api.objects.{Chat, InputFile, Message, Update, User}
+import org.telegram.telegrambots.meta.api.objects._
 import org.telegram.telegrambots.meta.bots.AbsSender
 
 import java.io.File
@@ -52,11 +55,11 @@ class Bot(token: String,
           val maybeValidatedPlaylist = spotifyClient.maybeExtractPlaylistFromUrl(url).orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
           maybeValidatedPlaylist match {
             case Some(playlist) =>
-              persistenceClient.addPlaylist(playlist, chat.getId.toString)
+              val isSaved = persistenceClient.addPlaylist(playlist, chat.getId.toString)
               absSender.execute[Message, SendMessage](
                 new SendMessage(
                   chat.getId.toString,
-                  "Playlist saved"
+                  if (isSaved) "Playlist saved" else "Server error"
                 )
               )
             case None           =>
@@ -85,11 +88,11 @@ class Bot(token: String,
           val maybeValidatedPlaylist = spotifyClient.maybeExtractPlaylistFromUrl(url).orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
           maybeValidatedPlaylist match {
             case Some(playlist) =>
-              persistenceClient.removePlaylist(playlist, chat.getId.toString)
+              val isRemoved = persistenceClient.removePlaylist(playlist, chat.getId.toString)
               absSender.execute[Message, SendMessage](
                 new SendMessage(
                   chat.getId.toString,
-                  "Playlist removed"
+                  if (isRemoved) "Playlist removed" else "Server error"
                 )
               )
             case None           =>
@@ -106,16 +109,18 @@ class Bot(token: String,
 
   register(new BotCommand("list", "list") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
-      val addedPlaylists = persistenceClient.listPlaylists(chat.getId.toString)
-      if (addedPlaylists.nonEmpty) {
-        absSender.execute[Message, SendMessage](
-          new SendMessage(chat.getId.toString, addedPlaylists.map(_.playlistUrl).mkString("\n"))
-        )
-      } else {
-        absSender.execute[Message, SendMessage](
-          new SendMessage(chat.getId.toString, "You haven't any saved playlists")
-        )
+      val (isRetrieved, addedPlaylists) = persistenceClient.listPlaylists(chat.getId.toString)
+      val msg = (isRetrieved, addedPlaylists) match {
+        case (false, _)              =>
+          "Server error"
+        case (_, seq) if seq.isEmpty =>
+          "You don't have any saved playlists"
+        case (_, seq)                =>
+          seq.map(_.playlistUrl).mkString("\n")
       }
+      absSender.execute[Message, SendMessage](
+        new SendMessage(chat.getId.toString, msg)
+      )
     }
   })
 

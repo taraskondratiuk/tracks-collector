@@ -6,44 +6,32 @@ lazy val commonSettings = Seq(
     "-Xfatal-warnings",
     "-deprecation",
   ),
-  libraryDependencies ++= Seq(
-    "org.scalatest"               %% "scalatest"                    % "3.2.14" % Test,
-  )
 )
 
-lazy val circeVersion = "0.14.3"
+lazy val circeVersion = "0.14.5"
+lazy val telegramApiVersion = "6.5.0"
+lazy val catsEffectVersion = "3.4.8"
 
-lazy val utils = project
-  .in(file("utils"))
+lazy val tracksCollector = project
+  .in(file("tracks-collector"))
   .settings(commonSettings ++ Seq(
-    name := "utils",
+    name := "tracks-collector",
     version := "0.1",
     libraryDependencies ++= Seq(
-      "org.scalaj"                %% "scalaj-http"                  % "2.4.2",
+      "org.telegram"               % "telegrambots"                  % telegramApiVersion,
+      "org.telegram"               % "telegrambotsextensions"        % telegramApiVersion,
 
-      "io.circe"                  %% "circe-parser"                 % circeVersion,
-      "io.circe"                  %% "circe-generic"                % circeVersion,
-    )
-  ))
+      "ch.qos.logback"             % "logback-classic"               % "1.4.5",
+      "com.typesafe.scala-logging" %% "scala-logging"                % "3.9.5",
 
-lazy val collector = project
-  .in(file("collector"))
-  .settings(commonSettings ++ Seq(
-    name := "collector",
-    version := "0.1",
-  ))
-  .dependsOn(utils)
+      "org.typelevel"              %% "cats-effect"                  % catsEffectVersion,
 
-lazy val bot = project
-  .in(file("bot"))
-  .settings(commonSettings ++ Seq(
-    name := "bot",
-    version := "0.1",
-    libraryDependencies ++= Seq(
-      "org.telegram"              % "telegrambots"                  % "6.1.0",
-      "org.telegram"              % "telegrambotsextensions"        % "6.1.0",
+      "org.scalaj"                 %% "scalaj-http"                  % "2.4.2",
 
-      "com.lihaoyi"               %% "cask"                         % "0.8.3",
+      "io.circe"                   %% "circe-parser"                 % circeVersion,
+      "io.circe"                   %% "circe-generic"                % circeVersion,
+
+      "org.mongodb.scala"          %% "mongo-scala-driver"           % "4.9.0",
+      "org.scalatest"              %% "scalatest"                    % "3.2.15"               % Test,
     ),
   ))
-  .dependsOn(utils)
