@@ -33,9 +33,9 @@ ENV TRACKS_COLLECTOR_BOT_TOKEN ""
 
 ENV MONGO_URI ""
 
-RUN sbt compile
+RUN sbt tracksCollector/compile
 
-CMD ["sbt", "run"]
+CMD ["sbt", "tracksCollector/run"]
 
 # docker build . -t tracks-collector-bot
 # docker run -d \
