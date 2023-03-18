@@ -24,7 +24,7 @@ services:
 
   mongodb:
     image:
-      mongo:6.0.5
+      mongo:4.4.18
     container_name:
       mongodb-tracks-collector
     environment:
