@@ -10,6 +10,10 @@ RUN python3 -m pip install -U yt-dlp
 
 RUN python3 -m pip install -U savify
 
+RUN apt-get install ffmpeg -y
+
+RUN apt-get install frei0r-plugins -y
+
 RUN mkdir "/tracks-collector-log"
 
 RUN mkdir "/tracks"
