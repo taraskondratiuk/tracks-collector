@@ -32,7 +32,7 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
       }
 
       override def err(s: => String): Unit = {
-        if (s.contains("[INFO]") || s.contains("Completed")) {
+        if (s.contains("[INFO]") || s.contains("Completed") || s.replace("\n", "").trim.isBlank) {
           log.info(s"downloading $uri to $outputDir: $s")
         } else {
           log.warn(s"error on downloading $uri to $outputDir: $s")
