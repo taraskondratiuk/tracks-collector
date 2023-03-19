@@ -8,7 +8,7 @@ RUN apt-get install python3-pip -y
 
 RUN python3 -m pip install -U yt-dlp
 
-RUN python3 -m pip install --use-pep517 git+https://github.com/stschake/savify@feature/use-yt-dlp
+RUN python3 -m pip install git+https://github.com/stschake/savify@feature/use-yt-dlp
 
 RUN apt-get install ffmpeg -y
 
