@@ -48,10 +48,8 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
   }
 
   private def tryDownloadSpotifyTrack(uri: String, outputDir: String): Try[Unit] = {
-    val cmd = s"""savify "$uri" -o "$outputDir" -q best -f mp3"""
-    val proc = Process(cmd, None, "SPOTIPY_CLIENT_ID" -> spotifyClientId, "SPOTIPY_CLIENT_SECRET" -> spotifyClientSecret)
     Try {
-      proc.!!(processLogger(uri, outputDir))
+      s"""savify "$uri" -o "$outputDir" -q best -f mp3""".!!(processLogger(uri, outputDir))
     }
   }
 }

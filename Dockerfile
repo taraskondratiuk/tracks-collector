@@ -8,7 +8,7 @@ RUN apt-get install python3-pip -y
 
 RUN python3 -m pip install -U yt-dlp
 
-RUN python3 -m pip install -U savify
+RUN python3 -m pip install --use-pep517 git+https://github.com/stschake/savify@feature/use-yt-dlp
 
 RUN apt-get install ffmpeg -y
 
@@ -34,6 +34,10 @@ ENV SPOTIFY_CLIENT_ID ""
 
 ENV SPOTIFY_CLIENT_SECRET ""
 
+ENV SPOTIPY_CLIENT_ID ""
+
+ENV SPOTIPY_CLIENT_SECRET ""
+
 ENV TRACKS_COLLECTOR_BOT_TOKEN ""
 
 ENV MONGO_URI ""
@@ -48,6 +52,8 @@ CMD ["sbt", "tracksCollector/run"]
 #  -v <path to log dir>:/tracks-collector-log \
 #  -e SPOTIFY_CLIENT_ID=<spotify client id> \
 #  -e SPOTIFY_CLIENT_SECRET=<spotify client secret> \
+#  -e SPOTIPY_CLIENT_ID=<spotify client id> \
+#  -e SPOTIPY_CLIENT_SECRET=<spotify client secret> \
 #  -e YOUTUBE_API_KEY=<youtube api key> \
 #  -e TRACKS_COLLECTOR_BOT_TOKEN=<telegram bot token> \
 #  -e MONGO_URI=<mongo uri in format host:port> \
