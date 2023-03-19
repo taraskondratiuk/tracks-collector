@@ -1,4 +1,3 @@
-
 import bot.Bot
 import cats.effect.std.Semaphore
 import cats.effect.{ExitCode, IO, IOApp}
@@ -9,20 +8,18 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession
 import trackscollector.TracksCollector
 import tracksdownloader.TracksDownloader
 
-import java.util.concurrent.Executors
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.ExecutionContext
 
 object Main extends IOApp {
 
-  private val SPOTIFY_CLIENT_ID     = sys.env("SPOTIFY_CLIENT_ID")
-  private val SPOTIFY_CLIENT_SECRET = sys.env("SPOTIFY_CLIENT_SECRET")
-  private val YOUTUBE_API_KEY       = sys.env("YOUTUBE_API_KEY")
-  private val MONGO_URI             = sys.env("MONGO_URI")
+  private val TRACKS_COLLECTOR_BOT_TOKEN = sys.env("TRACKS_COLLECTOR_BOT_TOKEN")
+  private val SPOTIFY_CLIENT_ID          = sys.env("SPOTIFY_CLIENT_ID")
+  private val SPOTIFY_CLIENT_SECRET      = sys.env("SPOTIFY_CLIENT_SECRET")
+  private val YOUTUBE_API_KEY            = sys.env("YOUTUBE_API_KEY")
+  private val MONGO_URI                  = sys.env("MONGO_URI")
+  private val TRACKS_DIR                 = sys.env("TRACKS_DIR")
 
   private val log = Logger(this.getClass.getSimpleName)
-
-  private val ec = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
 
   override def run(args: List[String]): IO[ExitCode] = {
     def collectorIO(s: Semaphore[IO], tracksCollector: TracksCollector): IO[Unit] = {
@@ -36,13 +33,13 @@ object Main extends IOApp {
     }
 
     def botInit(spotifyClient: SpotifyClient, youtubeClient: YoutubeClient, persistenceClient: PersistenceClient): Bot = {
-      val bot = new Bot(sys.env("TRACKS_COLLECTOR_BOT_TOKEN"), spotifyClient, youtubeClient, persistenceClient)
+      val bot = new Bot(sys.env(TRACKS_COLLECTOR_BOT_TOKEN), spotifyClient, youtubeClient, persistenceClient)
       val botsApi = new TelegramBotsApi(classOf[DefaultBotSession])
       botsApi.registerBot(bot)
       log.info("bot started")
       bot
     }
-    val res = for {
+    for {
       semaphore         <- Semaphore[IO](1)
       spotifyClient     = new SpotifyClient(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
       youtubeClient     = new YoutubeClient(YOUTUBE_API_KEY)
@@ -55,10 +52,9 @@ object Main extends IOApp {
         persistenceClient,
         downloader,
         bot,
-        sys.env("TRACKS_DIR"),
+        sys.env(TRACKS_DIR),
       )
       _                 <- IO.sleep(5.minutes) *> collectorIO(semaphore, tracksCollector).foreverM
     } yield ExitCode.Success
-    res.evalOn(ec)
   }
 }
