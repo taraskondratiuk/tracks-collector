@@ -53,7 +53,7 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
 
   private def tryDownloadSpotifyTrack(uri: String, outputDir: String): Try[Unit] = {
     Try {
-      s"""savify "$uri" -o "$outputDir" -q best -f mp3""".!!(processLogger(uri, outputDir))
+      s"""savify "$uri" -o "$outputDir" -q 192k -f mp3""".!!(processLogger(uri, outputDir))
     }
   }
 }

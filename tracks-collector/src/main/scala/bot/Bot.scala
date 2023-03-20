@@ -137,7 +137,7 @@ class Bot(token: String,
     } else {
       this.execute[Message, SendMessage](new SendMessage(
         chatId,
-        s"Sorry, file ${file.getName} is too large. Telegram bot message size limit is 50mb",
+        s"Sorry, file '${file.getName}' is too large. Telegram bot message size limit is 50mb",
       ))
     }
   }
