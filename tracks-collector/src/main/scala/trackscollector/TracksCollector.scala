@@ -45,6 +45,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
       }.groupMapReduce { case (k, _) => k } { case (_, v) => Seq(v) } { case (values1, values2) => values1 ++ values2 }
       _                <- tracksGroupedByChatId.map { case (Chat(chatId), playlists) =>
         sendTracksForSingleChat(chatId, playlists, tsStarted)
+          .handleError(e => log.info(s"failed to collect tracks for chatId $chatId: ${e.getMessage}"))
       }.toList.sequence
       _                = log.info("finish collecting tracks")
     } yield ()

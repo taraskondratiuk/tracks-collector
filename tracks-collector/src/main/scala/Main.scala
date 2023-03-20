@@ -26,7 +26,10 @@ object Main extends IOApp {
       for {
         isNonRunning <- s.tryAcquire
         _            <- if (isNonRunning) {
-          (tracksCollector.collectTracks() *> s.release).start
+          val collectIO = tracksCollector
+            .collectTracks()
+            .handleError(e => log.warn(s"tracks collector failed: ${e.getMessage}"))
+          (collectIO *> s.release).start
         } else IO(log.warn("previous collect job not finished yet"))
         _            <- IO.sleep(1.hour)
       } yield ()

@@ -127,9 +127,18 @@ class Bot(token: String,
   override def processNonCommandUpdate(update: Update): Unit = ()
 
   def sendTrack(trackPath: String, chatId: String): Unit = {
-    val sendTrack = new SendAudio()
-    sendTrack.setAudio(new InputFile(new File(trackPath)))
-    sendTrack.setChatId(chatId)
-    this.execute(sendTrack)
+    val file = new File(trackPath)
+    val fileSizeMb = file.length() / (1024 * 1024)
+    if (fileSizeMb < 50) {
+      val sendTrack = new SendAudio()
+      sendTrack.setAudio(new InputFile(file))
+      sendTrack.setChatId(chatId)
+      this.execute(sendTrack)
+    } else {
+      this.execute(new SendMessage(
+        chatId,
+        s"Sorry, file ${file.getName} is too large. Telegram bot message size limit is 50mb",
+      ))
+    }
   }
 }
