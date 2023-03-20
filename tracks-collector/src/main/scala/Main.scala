@@ -33,7 +33,7 @@ object Main extends IOApp {
     }
 
     def botInit(spotifyClient: SpotifyClient, youtubeClient: YoutubeClient, persistenceClient: PersistenceClient): Bot = {
-      val bot = new Bot(sys.env(TRACKS_COLLECTOR_BOT_TOKEN), spotifyClient, youtubeClient, persistenceClient)
+      val bot = new Bot(TRACKS_COLLECTOR_BOT_TOKEN, spotifyClient, youtubeClient, persistenceClient)
       val botsApi = new TelegramBotsApi(classOf[DefaultBotSession])
       botsApi.registerBot(bot)
       log.info("bot started")
@@ -52,7 +52,7 @@ object Main extends IOApp {
         persistenceClient,
         downloader,
         bot,
-        sys.env(TRACKS_DIR),
+        TRACKS_DIR,
       )
       _                 <- IO.sleep(5.minutes) *> collectorIO(semaphore, tracksCollector).foreverM
     } yield ExitCode.Success
