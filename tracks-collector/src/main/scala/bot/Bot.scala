@@ -2,13 +2,17 @@ package bot
 
 
 import clients.{PersistenceClient, SpotifyClient, YoutubeClient}
+import models.TrackFilesGroup
+import models.TrackFilesGroup.{TrackFilesInvalidGroup, TrackFilesValidGroup, TrackFilesValidSingleElement}
 import org.telegram.telegrambots.extensions.bots.commandbot.TelegramLongPollingCommandBot
 import org.telegram.telegrambots.extensions.bots.commandbot.commands.BotCommand
-import org.telegram.telegrambots.meta.api.methods.send.{SendAudio, SendMessage}
+import org.telegram.telegrambots.meta.api.methods.send.{SendAudio, SendMediaGroup, SendMessage}
 import org.telegram.telegrambots.meta.api.objects._
+import org.telegram.telegrambots.meta.api.objects.media.{InputMedia, InputMediaAudio}
 import org.telegram.telegrambots.meta.bots.AbsSender
 
 import java.io.File
+import scala.jdk.CollectionConverters.SeqHasAsJava
 
 class Bot(token: String,
           spotifyClient: SpotifyClient,
@@ -126,19 +130,27 @@ class Bot(token: String,
 
   override def processNonCommandUpdate(update: Update): Unit = ()
 
-  def sendTrack(trackPath: String, chatId: String): Unit = {
-    val file = new File(trackPath)
-    val fileSizeMb = file.length() / (1024 * 1024)
-    if (fileSizeMb < 50) {
-      val sendTrack = new SendAudio()
-      sendTrack.setAudio(new InputFile(file))
-      sendTrack.setChatId(chatId)
-      this.execute(sendTrack)
-    } else {
-      this.execute[Message, SendMessage](new SendMessage(
-        chatId,
-        s"Sorry, file '${file.getName}' is too large. Telegram bot message size limit is 50mb",
-      ))
+  def sendTracks(tracksGroup: TrackFilesGroup, chatId: String): Unit = {
+    tracksGroup match {
+      case TrackFilesValidGroup(tracks)        =>
+        val sendTrack = new SendMediaGroup()
+        sendTrack.setChatId(chatId)
+        val medias = tracks.map { trackFile =>
+          val media = new InputMediaAudio()
+          media.setMedia(trackFile.file, trackFile.name)
+          media.asInstanceOf[InputMedia]
+        }
+        sendTrack.setMedias(medias.asJava)
+        this.execute(sendTrack)
+      case TrackFilesValidSingleElement(track) =>
+        val sendTrack = new SendAudio()
+        sendTrack.setAudio(new InputFile(track.file))
+        this.execute(sendTrack)
+      case TrackFilesInvalidGroup(tracks)      =>
+        this.execute[Message, SendMessage](new SendMessage(
+          chatId,
+          s"Sorry, files '$tracks' are too large. Telegram bot message size limit is 50mb",
+        ))
     }
   }
 }

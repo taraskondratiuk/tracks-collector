@@ -6,7 +6,7 @@ import cats.effect.std.Semaphore
 import cats.syntax.traverse.toTraverseOps
 import clients.{PersistenceClient, SpotifyClient, YoutubeClient}
 import com.typesafe.scalalogging.Logger
-import models.{SpotifySource, TrackSource, YoutubeSource}
+import models.{SpotifySource, TrackFilesGroup, TrackSource, YoutubeSource}
 import tracksdownloader.TracksDownloader
 
 import java.io.File
@@ -75,18 +75,27 @@ class TracksCollector(spotifyClient: SpotifyClient,
     chatTracksDir.mkdirs
     chatTracksDir.listFiles.filter(_.isFile).map(_.delete())
     tracks.foreach(v => downloader.downloadTrack(v.url, chatPath, v.source))
-    if (tracks.nonEmpty) {
+    IO.whenA(tracks.nonEmpty) {
       log.info(s"sending tracks from $chatPath")
-      val sendTracksIO = chatTracksDir.listFiles.filter(_.isFile).toList.traverse { file =>
+
+      val files = chatTracksDir
+        .listFiles
+        .filter(_.isFile)
+        .toList
+
+      val tracksGroups = TrackFilesGroup.generateGroupsFromFiles(files)
+
+      val sendTracksIO = tracksGroups.traverse { tracksGroup =>
         for {
           _ <- chatSemaphore.acquire
-          _ = log.info(s"sending ${file.getAbsolutePath}")
-          _ = bot.sendTrack(file.getAbsolutePath, chatId)
+          _ = log.info(s"sending $tracksGroup")
+          _ = bot.sendTracks(tracksGroup, chatId)
           //tg bot limit is 20 msgs per minute for single chat
           _ <- (IO.sleep(120.seconds) *> chatSemaphore.release).start
         } yield ()
       }
       sendTracksIO.map(_ => persistenceClient.updateSaveTimeForPlaylist(playlistRecordId, saveTime))
-    } else IO.unit
+    }
   }
 }
+

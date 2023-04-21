@@ -1,5 +1,3 @@
-import sbt.Keys.name
-
 lazy val commonSettings = Seq(
   scalaVersion := "2.13.8",
   scalacOptions ++= Seq(
