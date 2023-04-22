@@ -2,7 +2,9 @@
 ## Run
 ```shell
 # build
-docker-compose build
+LOGS_VOLUME= \
+  MONGO_VOLUME= \
+  docker compose build
 
 # run
 LOGS_VOLUME= \
@@ -11,5 +13,5 @@ LOGS_VOLUME= \
   SPOTIFY_CLIENT_SECRET= \
   YOUTUBE_API_KEY= \
   TRACKS_COLLECTOR_BOT_TOKEN= \
-  docker-compose up -d 
+  docker compose up -d 
 ```
