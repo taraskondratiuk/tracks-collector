@@ -54,7 +54,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
   private def sendTracksForSingleChat(chatId: String,
                                       playlists: Seq[TracksFromPlaylist],
                                       saveTime: Long,
-                                      chatSemaphore: IO[Semaphore[IO]] = Semaphore[IO](15),
+                                      chatSemaphore: IO[Semaphore[IO]] = Semaphore[IO](5),
                                      ): IO[Unit] = {
     for {
       s        <- chatSemaphore
