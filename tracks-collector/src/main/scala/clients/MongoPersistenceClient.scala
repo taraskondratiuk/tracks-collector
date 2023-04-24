@@ -37,7 +37,7 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
       }
     } match {
       case Success(_) =>
-        log.info(s"saved playlist $playlist fro chatId $chatId")
+        log.info(s"saved playlist $playlist for chatId $chatId")
         true
       case Failure(e) =>
         log.warn(s"failed to save playlist $playlist for chatId $chatId: ${e.getMessage}")

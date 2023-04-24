@@ -47,7 +47,8 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
 
   private def tryDownloadYoutubeTrack(uri: String, outputDir: String): Try[Unit] = {
     Try {
-      s"""yt-dlp -f 'bestaudio[ext=m4a]' --output "$outputDir/%(title)s.mp3" $uri""".!!(processLogger(uri, outputDir))
+      raw"""yt-dlp --extract-audio -f 'bestaudio' --audio-format mp3 \
+         --output "$outputDir/%(title)s.%(ext)s" $uri""".!!(processLogger(uri, outputDir))
     }
   }
 

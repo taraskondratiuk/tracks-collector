@@ -5,7 +5,8 @@
 LOGS_VOLUME= \
   MONGO_VOLUME= \
   docker compose build
-
+```
+```shell
 # run
 LOGS_VOLUME= \
   MONGO_VOLUME= \

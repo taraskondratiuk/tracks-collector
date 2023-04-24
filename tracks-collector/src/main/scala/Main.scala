@@ -31,7 +31,7 @@ object Main extends IOApp {
             .handleError(e => log.warn(s"tracks collector failed: ${e.getMessage}"))
           (collectIO *> s.release).start
         } else IO(log.warn("previous collect job not finished yet"))
-        _            <- IO.sleep(1.hour)
+        _            <- IO.sleep(30.minutes)
       } yield ()
     }
 
