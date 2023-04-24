@@ -145,6 +145,7 @@ class Bot(token: String,
       case TrackFilesValidSingleElement(track) =>
         val sendTrack = new SendAudio()
         sendTrack.setAudio(new InputFile(track.file))
+        sendTrack.setChatId(chatId)
         this.execute(sendTrack)
       case TrackFilesInvalidGroup(tracks)      =>
         this.execute[Message, SendMessage](new SendMessage(
