@@ -89,6 +89,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
         for {
           _ <- chatSemaphore.acquire
           _ = log.info(s"sending $tracksGroup")
+          _ <- IO.sleep(2.seconds)
           _ = bot.sendTracks(tracksGroup, chatId)
           //tg bot limit is 20 msgs per minute for single chat
           _ <- (IO.sleep(120.seconds) *> chatSemaphore.release).start
