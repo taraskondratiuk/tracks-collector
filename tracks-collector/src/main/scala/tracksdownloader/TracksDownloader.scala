@@ -53,7 +53,7 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
         .replace("/", " ")
         .replace("\\", " ")
         .replace("\"", "'")
-      val cmd = s"""yt-dlp -x -f 'ba' --audio-format mp3 --embed-thumbnail -o "$outputDir/$validTitle.%(ext)s" "$uri""""
+      val cmd = s"""yt-dlp -x -f 'ba' --audio-format mp3 --embed-thumbnail --no-mtime -o "$outputDir/$validTitle.%(ext)s" "$uri""""
       cmd.!!(processLogger(uri, outputDir, cmd))
     }
   }

@@ -4,7 +4,7 @@ import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder}
 
 import java.io.File
-import scala.annotation.tailrec
+import scala.collection.mutable
 
 sealed trait TrackSource
 case object SpotifySource extends TrackSource
@@ -78,23 +78,30 @@ sealed trait TrackFilesGroup {
 
 object TrackFilesGroup {
   def generateGroupsFromFiles(files: Seq[File]): List[TrackFilesGroup] = {
-    val (validFiles, tooLargeFiles) = files.map(TrackFile(_)).partition(f => f.sizeMb < 50)
+    val (validFiles, tooLargeFiles) = files
+      .sortBy(f => f.lastModified())
+      .map(TrackFile(_))
+      .partition(f => f.sizeMb < 50)
 
-    @tailrec
-    def groupTracks(tracks: List[TrackFile], acc: List[TrackFilesGroup] = List.empty): List[TrackFilesGroup] = {
+    def groupTracks(tracks: List[TrackFile]): List[TrackFilesGroup] = {
       if (tracks.isEmpty) {
-        acc
+        List.empty
       } else {
-        val (newGroup, unusedTracks) = tracks
-          .tail
-          .foldLeft(TrackFilesGroup(tracks.head) -> List.empty[TrackFile]) {
-            case ((group, notUsedTracksAcc), trackToSend) =>
-              group.flatMap(_.add(trackToSend)) match {
-                case Some(updatedGroup) => Some(updatedGroup) -> notUsedTracksAcc
-                case None               => group -> (notUsedTracksAcc :+ trackToSend)
-              }
+        val acc: mutable.ListBuffer[TrackFilesGroup] = mutable.ListBuffer.empty
+        var groupAcc = TrackFilesGroup(tracks.head)
+        tracks.tail.foreach { trackFile =>
+          groupAcc.foreach { grp =>
+            grp.add(trackFile) match {
+              case Some(updatedGroup) =>
+                groupAcc = Some(updatedGroup)
+              case None               =>
+                acc.addAll(groupAcc)
+                groupAcc = TrackFilesGroup(trackFile)
+            }
           }
-        groupTracks(unusedTracks, acc ++ newGroup)
+        }
+        acc.addAll(groupAcc)
+        acc.toList
       }
     }
 
