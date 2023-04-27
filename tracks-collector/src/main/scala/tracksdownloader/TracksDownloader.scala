@@ -27,7 +27,7 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
     }
   }
 
-  private def processLogger(uri: String, outputDir: String): ProcessLogger = {
+  private def processLogger(uri: String, outputDir: String, cmd: String): ProcessLogger = {
     new ProcessLogger {
       override def out(s: => String): Unit = {
         log.info(s"downloading $uri to $outputDir: $s")
@@ -37,7 +37,7 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
         if (s.contains("[INFO]") || s.contains("Completed") || s.replace("\n", "").trim.isBlank) {
           log.info(s"downloading $uri to $outputDir: $s")
         } else {
-          log.warn(s"error on downloading $uri to $outputDir: $s")
+          log.warn(s"error on downloading $uri to $outputDir [$cmd]: $s")
         }
       }
 
@@ -53,14 +53,16 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
         .replace("/", " ")
         .replace("\\", " ")
         .replace("\"", "'")
-      raw"""yt-dlp --extract-audio -f 'bestaudio' --audio-format mp3 --embed-thumbnail \
-         --output "$outputDir/$titleFormatted.%(ext)s" "$uri" """.!!(processLogger(uri, outputDir))
+      val cmd = raw"""yt-dlp --extract-audio -f 'bestaudio' --audio-format mp3 --embed-thumbnail \
+         --output "$outputDir/$titleFormatted.%(ext)s" "$uri" """
+      cmd.!!(processLogger(uri, outputDir, cmd))
     }
   }
 
   private def tryDownloadSpotifyTrack(uri: String, outputDir: String): Try[Unit] = {
     Try {
-      s"""savify "$uri" -o "$outputDir" -q 192k -f mp3""".!!(processLogger(uri, outputDir))
+      val cmd = s"""savify "$uri" -o "$outputDir" -q 192k -f mp3"""
+      cmd.!!(processLogger(uri, outputDir, cmd))
     }
   }
 }
