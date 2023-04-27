@@ -86,11 +86,24 @@ class TracksCollector(spotifyClient: SpotifyClient,
       val tracksGroups = TrackFilesGroup.generateGroupsFromFiles(files)
 
       val sendTracksIO = tracksGroups.traverse { tracksGroup =>
+        val sendTracksIO = IO {
+          log.info(s"sending $tracksGroup")
+          bot.sendTracks(tracksGroup, chatId)
+        }
         for {
           _ <- chatSemaphore.acquire
-          _ = log.info(s"sending $tracksGroup")
-          _ <- IO.sleep(2.seconds)
-          _ = bot.sendTracks(tracksGroup, chatId)
+          _ <- IO.sleep(10.seconds)
+          _ <- sendTracksIO.handleErrorWith { e =>
+            val timeoutRegex = ".*retry after (\\d+).*".r
+            e.getMessage match {
+              case timeoutRegex(t) =>
+                val timeout = t.toInt + 5
+                log.warn(s"tg api timeout: ${e.getMessage}, waiting $timeout seconds before retry")
+                IO.sleep(timeout.seconds) *> sendTracksIO
+              case _               =>
+                IO.raiseError(e)
+            }
+          }
           //tg bot limit is 20 msgs per minute for single chat
           _ <- (IO.sleep(120.seconds) *> chatSemaphore.release).start
         } yield ()
