@@ -10,8 +10,8 @@ import scala.annotation.tailrec
 
 class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
 
-  def getYoutubeVideoUrlsFromPlaylist(playlistId: String, fromTs: Long): Seq[String] = {
-    getVideoUrlsFromPlaylist(playlistId, fromTs)
+  def getYoutubeTracksInfoFromPlaylist(playlistId: String, fromTs: Long): Seq[YoutubeTrackInfo] = {
+    getTracksInfoFromPlaylist(playlistId, fromTs)
   }
 
   override def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
@@ -22,7 +22,7 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
     }
     maybePlaylistId
       .filter { pid =>
-        getVideoUrlsFromPlaylist(pid, onlyFirstPage = true)
+        getTracksInfoFromPlaylist(pid, onlyFirstPage = true)
         true
       }
       .map { pId =>
@@ -30,21 +30,23 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
       }
   }
 
-  case class PlaylistItemsPage(items: Seq[YtItem], nextPageToken: Option[String])
+  private case class PlaylistItemsPage(items: Seq[YtItem], nextPageToken: Option[String])
 
-  case class YtItem(contentDetails: ContentDetails, snippet: Snippet)
+  private case class YtItem(contentDetails: ContentDetails, snippet: Snippet)
 
-  case class ContentDetails(videoId: String)
+  private case class ContentDetails(videoId: String)
 
-  case class Snippet(publishedAt: String)
+  private case class Snippet(publishedAt: String, videoOwnerChannelTitle: Option[String], title: String)
+
+  case class YoutubeTrackInfo(name: String, url: String)
 
   @tailrec
-  private def getVideoUrlsFromPlaylist(playlistId: String,
+  private def getTracksInfoFromPlaylist(playlistId: String,
                                        fromTs: Long = 0,
                                        pageToken: Option[String] = None,
-                                       acc: Seq[String] = Seq.empty,
+                                       acc: Seq[YoutubeTrackInfo] = Seq.empty,
                                        onlyFirstPage: Boolean = false,
-                                      ): Seq[String] = {
+                                      ): Seq[YoutubeTrackInfo] = {
     val response: HttpResponse[String] = Http("https://www.googleapis.com/youtube/v3/playlistItems")
       .params(Map(
         "playlistId" -> playlistId,
@@ -59,12 +61,18 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
     val allVideoUrls = acc ++ playlistItemsPage
       .items
       .filter(v => DateUtil.stringDateToEpochSecond(v.snippet.publishedAt) >= fromTs)
-      .map(_.contentDetails.videoId)
-      .map(id => s"https://www.youtube.com/watch?v=$id")
+      .map { ytItem =>
+        val channel = ytItem.snippet.videoOwnerChannelTitle.getOrElse("")
+        val title = ytItem.snippet.title
+        val fullTitle = if (channel.endsWith(" - Topic")) { //YTMusic case
+          s"${channel.replace(" - Topic", "")} - $title"
+        } else title
+        YoutubeTrackInfo(fullTitle, s"https://www.youtube.com/watch?v=${ytItem.contentDetails.videoId}")
+      }
     playlistItemsPage.nextPageToken match {
       case None               => allVideoUrls
       case _ if onlyFirstPage => allVideoUrls
-      case Some(nextPage)     => getVideoUrlsFromPlaylist(playlistId, fromTs, Some(nextPage), allVideoUrls)
+      case Some(nextPage)     => getTracksInfoFromPlaylist(playlistId, fromTs, Some(nextPage), allVideoUrls)
     }
   }
 }

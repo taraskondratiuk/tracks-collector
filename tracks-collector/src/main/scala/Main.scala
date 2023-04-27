@@ -57,7 +57,7 @@ object Main extends IOApp {
         bot,
         TRACKS_DIR,
       )
-      _                 <- IO.sleep(5.minutes) *> collectorIO(semaphore, tracksCollector).foreverM
+      _                 <- IO.sleep(2.minutes) *> collectorIO(semaphore, tracksCollector).foreverM
     } yield ExitCode.Success
   }
 }

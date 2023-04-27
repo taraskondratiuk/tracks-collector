@@ -24,24 +24,24 @@ class TracksCollector(spotifyClient: SpotifyClient,
 
   private case class Chat(chatId: String)
   private case class TracksFromPlaylist(tracks: Seq[Track], playlistRecordId: String)
-  private case class Track(url: String, source: TrackSource)
+  private case class Track(url: String, source: TrackSource, maybeTrackName: Option[String] = None)
 
   def collectTracks(): IO[Unit] = {
     for {
       _                <- IO(log.info("start collecting tracks"))
       tsStarted        = System.currentTimeMillis() / 1000
       tracksGroupedByChatId = persistenceClient.getAllPlaylistRecords().map { p =>
-        val tracksUrls = p.source match {
+        val tracks = p.source match {
           case SpotifySource =>
             spotifyClient
               .getSpotifyTrackUrlsFromPlaylist(p.playlistId, p.tsLastSave)
               .map(url => Track(url, SpotifySource))
           case YoutubeSource =>
             youtubeClient
-              .getYoutubeVideoUrlsFromPlaylist(p.playlistId, p.tsLastSave)
-              .map(url => Track(url, YoutubeSource))
+              .getYoutubeTracksInfoFromPlaylist(p.playlistId, p.tsLastSave)
+              .map(ytTrackInfo => Track(ytTrackInfo.url, YoutubeSource, Some(ytTrackInfo.name)))
         }
-        Chat(p.chatId) -> TracksFromPlaylist(tracksUrls, p._id)
+        Chat(p.chatId) -> TracksFromPlaylist(tracks, p._id)
       }.groupMapReduce { case (k, _) => k } { case (_, v) => Seq(v) } { case (values1, values2) => values1 ++ values2 }
       _                <- tracksGroupedByChatId.map { case (Chat(chatId), playlists) =>
         sendTracksForSingleChat(chatId, playlists, tsStarted)
@@ -74,7 +74,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
     val chatTracksDir = new File(chatPath)
     chatTracksDir.mkdirs
     chatTracksDir.listFiles.filter(_.isFile).map(_.delete())
-    tracks.foreach(v => downloader.downloadTrack(v.url, chatPath, v.source))
+    tracks.foreach(v => downloader.downloadTrack(v.url, chatPath, v.source, v.maybeTrackName))
     IO.whenA(tracks.nonEmpty) {
       log.info(s"sending tracks from $chatPath")
 
@@ -99,4 +99,3 @@ class TracksCollector(spotifyClient: SpotifyClient,
     }
   }
 }
-

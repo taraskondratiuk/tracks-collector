@@ -120,7 +120,7 @@ class Bot(token: String,
         case (_, seq) if seq.isEmpty =>
           "You don't have any saved playlists"
         case (_, seq)                =>
-          seq.map(_.playlistUrl).mkString("\n")
+          seq.zipWithIndex.map { case (playlist, idx) => s"${idx + 1}) ${playlist.playlistUrl}" }.mkString("\n")
       }
       absSender.execute[Message, SendMessage](
         new SendMessage(chat.getId.toString, msg)
@@ -138,6 +138,7 @@ class Bot(token: String,
         val medias = tracks.map { trackFile =>
           val media = new InputMediaAudio()
           media.setMedia(trackFile.file, trackFile.name)
+          media.setTitle(trackFile.name)
           media.asInstanceOf[InputMedia]
         }
         sendTrack.setMedias(medias.asJava)
@@ -146,6 +147,7 @@ class Bot(token: String,
         val sendTrack = new SendAudio()
         sendTrack.setAudio(new InputFile(track.file))
         sendTrack.setChatId(chatId)
+        sendTrack.setTitle(track.file.getName)
         this.execute(sendTrack)
       case TrackFilesInvalidGroup(tracks)      =>
         this.execute[Message, SendMessage](new SendMessage(
