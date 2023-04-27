@@ -49,12 +49,11 @@ class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
 
   private def tryDownloadYoutubeTrack(uri: String, title: String, outputDir: String): Try[Unit] = {
     Try {
-      val titleFormatted = title
+      val validTitle = title
         .replace("/", " ")
         .replace("\\", " ")
         .replace("\"", "'")
-      val cmd = raw"""yt-dlp --extract-audio -f 'bestaudio' --audio-format mp3 --embed-thumbnail \
-         --output "$outputDir/$titleFormatted.%(ext)s" "$uri" """
+      val cmd = s"""yt-dlp -x -f 'ba' --audio-format mp3 --embed-thumbnail -o "$outputDir/$validTitle.%(ext)s" "$uri""""
       cmd.!!(processLogger(uri, outputDir, cmd))
     }
   }
