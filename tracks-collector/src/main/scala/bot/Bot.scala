@@ -60,12 +60,14 @@ class Bot(token: String,
           maybeValidatedPlaylist match {
             case Some(playlist) =>
               val isSaved = persistenceClient.addPlaylist(playlist, chat.getId.toString)
-              absSender.execute[Message, SendMessage](
-                new SendMessage(
-                  chat.getId.toString,
-                  if (isSaved) "Playlist saved" else "Server error"
-                )
+              val msg = new SendMessage(
+                chat.getId.toString,
+                if (isSaved) {
+                  s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} saved"
+                } else "Server error"
               )
+              msg.setParseMode("MARKDOWN")
+              absSender.execute[Message, SendMessage](msg)
             case None           =>
               absSender.execute[Message, SendMessage](
                 new SendMessage(
@@ -93,12 +95,14 @@ class Bot(token: String,
           maybeValidatedPlaylist match {
             case Some(playlist) =>
               val isRemoved = persistenceClient.removePlaylist(playlist, chat.getId.toString)
-              absSender.execute[Message, SendMessage](
-                new SendMessage(
-                  chat.getId.toString,
-                  if (isRemoved) "Playlist removed" else "Server error"
-                )
+              val msg = new SendMessage(
+                chat.getId.toString,
+                if (isRemoved) {
+                  s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} removed"
+                } else "Server error"
               )
+              msg.setParseMode("MARKDOWN")
+              absSender.execute[Message, SendMessage](msg)
             case None           =>
               absSender.execute[Message, SendMessage](
                 new SendMessage(
@@ -130,15 +134,19 @@ class Bot(token: String,
 
   override def processNonCommandUpdate(update: Update): Unit = ()
 
-  def sendTracks(tracksGroup: TrackFilesGroup, chatId: String): Unit = {
+  def sendTracks(tracksGroup: TrackFilesGroup, msgText: String, msgUrl: String, chatId: String): Unit = {
     tracksGroup match {
       case TrackFilesValidGroup(tracks)        =>
         val sendTrack = new SendMediaGroup()
         sendTrack.setChatId(chatId)
-        val medias = tracks.map { trackFile =>
+        val medias = tracks.zipWithIndex.map { case (trackFile, idx) =>
           val media = new InputMediaAudio()
           media.setMedia(trackFile.file, trackFile.name)
           media.setTitle(trackFile.name)
+          if (idx == tracks.length - 1) {
+            media.setCaption(formatTgMessage(msgText, msgUrl))
+            media.setParseMode("MARKDOWN")
+          }
           media.asInstanceOf[InputMedia]
         }
         sendTrack.setMedias(medias.asJava)
@@ -148,12 +156,21 @@ class Bot(token: String,
         sendTrack.setAudio(new InputFile(track.file))
         sendTrack.setChatId(chatId)
         sendTrack.setTitle(track.file.getName)
+        sendTrack.setCaption(formatTgMessage(msgText, msgUrl))
+        sendTrack.setParseMode("MARKDOWN")
         this.execute(sendTrack)
       case TrackFilesInvalidGroup(tracks)      =>
-        this.execute[Message, SendMessage](new SendMessage(
+        val msg = new SendMessage(
           chatId,
-          s"Sorry, files '$tracks' are too large. Telegram bot message size limit is 50mb",
-        ))
+          s"Sorry, files '$tracks' from ${formatTgMessage(msgText, msgUrl)} are too large. " +
+            s"Telegram bot message size limit is 50mb",
+        )
+        msg.setParseMode("MARKDOWN")
+        this.execute[Message, SendMessage](msg)
     }
+  }
+
+  private def formatTgMessage(text: String, url: String): String = {
+    s"[$text]($url)"
   }
 }

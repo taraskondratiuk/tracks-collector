@@ -23,7 +23,11 @@ class TracksCollector(spotifyClient: SpotifyClient,
   private val log = Logger(this.getClass.getSimpleName)
 
   private case class Chat(chatId: String)
-  private case class TracksFromPlaylist(tracks: Seq[Track], playlistRecordId: String)
+  private case class TracksFromPlaylist(tracks: Seq[Track],
+                                        playlistName: String,
+                                        playlistUrl: String,
+                                        playlistRecordId: String,
+                                       )
   private case class Track(url: String, source: TrackSource, maybeTrackName: Option[String] = None)
 
   def collectTracks(): IO[Unit] = {
@@ -41,7 +45,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
               .getYoutubeTracksInfoFromPlaylist(p.playlistId, p.tsLastSave)
               .map(ytTrackInfo => Track(ytTrackInfo.url, YoutubeSource, Some(ytTrackInfo.name)))
         }
-        Chat(p.chatId) -> TracksFromPlaylist(tracks, p._id)
+        Chat(p.chatId) -> TracksFromPlaylist(tracks, p.name, p.playlistUrl, p._id)
       }.groupMapReduce { case (k, _) => k } { case (_, v) => Seq(v) } { case (values1, values2) => values1 ++ values2 }
       _                <- tracksGroupedByChatId.map { case (Chat(chatId), playlists) =>
         sendTracksForSingleChat(chatId, playlists, tsStarted)
@@ -60,11 +64,24 @@ class TracksCollector(spotifyClient: SpotifyClient,
       s        <- chatSemaphore
       chatPath = s"$tracksDir/$chatId"
       _        <- playlists
-        .traverse(p => sendTracksForSingleChatFromSinglePlaylist(chatId, p.tracks, saveTime, p.playlistRecordId, chatPath, s))
+        .traverse(p =>
+          sendTracksForSingleChatFromSinglePlaylist(
+            chatId,
+            p.playlistName,
+            p.playlistUrl,
+            p.tracks,
+            saveTime,
+            p.playlistRecordId,
+            chatPath,
+            s,
+          )
+        )
     } yield ()
   }
 
   private def sendTracksForSingleChatFromSinglePlaylist(chatId: String,
+                                                        playlistName: String,
+                                                        playlistUrl: String,
                                                         tracks: Seq[Track],
                                                         saveTime: Long,
                                                         playlistRecordId: String,
@@ -88,7 +105,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
       val sendTracksIO = tracksGroups.traverse { tracksGroup =>
         val sendTracksIO = IO {
           log.info(s"sending $tracksGroup")
-          bot.sendTracks(tracksGroup, chatId)
+          bot.sendTracks(tracksGroup, playlistName, playlistUrl, chatId)
         }
         for {
           _ <- chatSemaphore.acquire

@@ -10,9 +10,46 @@ import scala.annotation.tailrec
 
 class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extends UrlValidator {
 
+  private val SPOTIFY_API_BASE_URI = "https://api.spotify.com/v1/playlists"
+
+  private case class PlaylistResponse(name: String)
+
+  private case class TracksPageResponse(items: Seq[SpotifyItem], next: Option[String])
+
+  private case class SpotifyItem(track: Track, added_at: String)
+
+  private case class Track(external_urls: ExternalUrls)
+
+  private case class ExternalUrls(spotify: String)
+
   def getSpotifyTrackUrlsFromPlaylist(playlistId: String, fromTs: Long): Seq[String] = {
     val accessToken = getAccessToken
-    getTrackUrlsFromPlaylist(accessToken, playlistId, fromTs)
+
+    @tailrec
+    def go(accessToken: String,
+           playlistId: String,
+           fromTs: Long = 0,
+           pageUrl: Option[String] = None,
+           acc: Seq[String] = Seq.empty,
+          ): Seq[String] = {
+      val url = pageUrl.getOrElse(s"$SPOTIFY_API_BASE_URI/$playlistId/tracks")
+      val response: HttpResponse[String] = Http(url)
+        .header("Authorization", s"Bearer $accessToken")
+        .asString
+      import io.circe.generic.auto._
+      val tracksPage = parse(response.body).flatMap(json => json.as[TracksPageResponse])
+        .fold(err => throw new Exception(s"failed to get tracks page, error: $err, response: $response"), page => page)
+      val allTrackUrls = acc ++ tracksPage
+        .items
+        .filter(v => DateUtil.stringDateToEpochSecond(v.added_at) >= fromTs)
+        .map(_.track.external_urls.spotify)
+      tracksPage.next match {
+        case None           => allTrackUrls
+        case Some(nextPage) => go(accessToken, playlistId, fromTs, Some(nextPage), allTrackUrls)
+      }
+    }
+
+    go(accessToken, playlistId, fromTs)
   }
 
   override def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
@@ -21,13 +58,20 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
       case spotifyPlaylistIdPattern(playlistId, _) => Some(playlistId)
       case _                                       => None
     }
+    val accessToken = getAccessToken
     maybePlaylistId
-      .filter { pid =>
-        getTrackUrlsFromPlaylist(getAccessToken, pid, onlyFirstPage = true)
-        true
-      }
-      .map { pId =>
-        Playlist(pId, url, SpotifySource)
+      .flatMap { pId =>
+        val response: HttpResponse[String] = Http(s"$SPOTIFY_API_BASE_URI/$pId")
+          .header("Authorization", s"Bearer $accessToken")
+          .asString
+        import io.circe.generic.auto._
+        if (response.code != 404) {
+          val playlist = parse(response.body).flatMap(json => json.as[PlaylistResponse])
+            .fold(err => throw new Exception(s"failed to get playlist page, error: $err, response: $response"), page => page)
+          Some(Playlist(pId, url, playlist.name, SpotifySource))
+        } else {
+          None
+        }
       }
   }
 
@@ -39,39 +83,5 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
 
     parse(response.body).flatMap(json => json.hcursor.downField("access_token").as[String])
       .getOrElse(throw new Exception(s"failed to get token: $response"))
-  }
-
-  case class TracksPage(items: Seq[SpotifyItem], next: Option[String])
-
-  case class SpotifyItem(track: Track, added_at: String)
-
-  case class Track(external_urls: ExternalUrls)
-
-  case class ExternalUrls(spotify: String)
-
-  @tailrec
-  private def getTrackUrlsFromPlaylist(accessToken: String,
-                                       playlistId: String,
-                                       fromTs: Long = 0,
-                                       pageUrl: Option[String] = None,
-                                       acc: Seq[String] = Seq.empty,
-                                       onlyFirstPage: Boolean = false,
-                                      ): Seq[String] = {
-    val url = pageUrl.getOrElse(s"https://api.spotify.com/v1/playlists/$playlistId/tracks")
-    val response: HttpResponse[String] = Http(url)
-      .header("Authorization", s"Bearer $accessToken")
-      .asString
-    import io.circe.generic.auto._
-    val tracksPage = parse(response.body).flatMap(json => json.as[TracksPage])
-      .fold(err => throw new Exception(s"failed to get tracks page, error: $err, response: $response"), page => page)
-    val allTrackUrls = acc ++ tracksPage
-      .items
-      .filter(v => DateUtil.stringDateToEpochSecond(v.added_at) >= fromTs)
-      .map(_.track.external_urls.spotify)
-    tracksPage.next match {
-      case None               => allTrackUrls
-      case _ if onlyFirstPage => allTrackUrls
-      case Some(nextPage)     => getTrackUrlsFromPlaylist(accessToken, playlistId, fromTs, Some(nextPage), allTrackUrls)
-    }
   }
 }
