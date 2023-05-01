@@ -2,6 +2,7 @@ package bot
 
 
 import clients.{PersistenceClient, SpotifyClient, YoutubeClient}
+import clients.PersistenceClient.{DbErrorResponse, SuccessfulResponse}
 import models.TrackFilesGroup
 import models.TrackFilesGroup.{TrackFilesInvalidGroup, TrackFilesValidGroup, TrackFilesValidSingleElement}
 import org.telegram.telegrambots.extensions.bots.commandbot.TelegramLongPollingCommandBot
@@ -11,8 +12,8 @@ import org.telegram.telegrambots.meta.api.objects._
 import org.telegram.telegrambots.meta.api.objects.media.{InputMedia, InputMediaAudio}
 import org.telegram.telegrambots.meta.bots.AbsSender
 
-import java.io.File
 import scala.jdk.CollectionConverters.SeqHasAsJava
+import scala.util.Try
 
 class Bot(token: String,
           spotifyClient: SpotifyClient,
@@ -25,22 +26,20 @@ class Bot(token: String,
 
   register(new BotCommand("start", "start") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
-      absSender.execute[Message, SendMessage](
-        new SendMessage(
-          chat.getId.toString,
-          "Welcome! Bot to collect music from Spotify/Youtube playlists. /help to get list of commands"
-        )
+      sendTextMsg(
+        chat.getId.toString,
+        "Welcome! Bot to collect music from Spotify/Youtube playlists. /help to get list of commands",
+        absSender,
       )
     }
   })
 
   register(new BotCommand("help", "help") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
-      absSender.execute[Message, SendMessage](
-        new SendMessage(
-          chat.getId.toString,
-          "/add <Spotify/Youtube playlist url>\n/remove <Spotify/Youtube playlist url>\n/list "
-        )
+      sendTextMsg(
+        chat.getId.toString,
+        "/add <Spotify/Youtube playlist url>\n/remove <Spotify/Youtube playlist url>\n/list",
+        absSender,
       )
     }
   })
@@ -49,32 +48,25 @@ class Bot(token: String,
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
       arguments.toList match {
         case Nil      =>
-          absSender.execute[Message, SendMessage](
-            new SendMessage(
-              chat.getId.toString,
-              "/add command requires Spotify/Youtube playlist url in format\n/add <Spotify/Youtube playlist url>"
-            )
+          sendTextMsg(
+            chat.getId.toString,
+            "/add command requires Spotify/Youtube playlist url in format\n/add <Spotify/Youtube playlist url>",
+            absSender,
           )
         case url :: _ =>
-          val maybeValidatedPlaylist = spotifyClient.maybeExtractPlaylistFromUrl(url).orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
+          val maybeValidatedPlaylist = spotifyClient.maybeExtractPlaylistFromUrl(url)
+            .orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
           maybeValidatedPlaylist match {
             case Some(playlist) =>
-              val isSaved = persistenceClient.addPlaylist(playlist, chat.getId.toString)
-              val msg = new SendMessage(
-                chat.getId.toString,
-                if (isSaved) {
+              val msgStr = persistenceClient.addPlaylist(playlist, chat.getId.toString) match {
+                case SuccessfulResponse(_) =>
                   s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} saved"
-                } else "Server error"
-              )
-              msg.setParseMode("MARKDOWN")
-              absSender.execute[Message, SendMessage](msg)
+                case DbErrorResponse(_)    =>
+                  "Server error"
+              }
+              sendTextMsg(chat.getId.toString, msgStr, absSender)
             case None           =>
-              absSender.execute[Message, SendMessage](
-                new SendMessage(
-                  chat.getId.toString,
-                  "Invalid url"
-                )
-              )
+              sendTextMsg(chat.getId.toString, "Invalid url", absSender)
           }
       }
     }
@@ -83,52 +75,40 @@ class Bot(token: String,
   register(new BotCommand("remove", "remove") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
       arguments.toList match {
-        case Nil      =>
-          absSender.execute[Message, SendMessage](
-            new SendMessage(
-              chat.getId.toString,
-              "/remove command requires Spotify/Youtube playlist url in format\n/add <Spotify/Youtube playlist url>"
-            )
-          )
-        case url :: _ =>
-          val maybeValidatedPlaylist = spotifyClient.maybeExtractPlaylistFromUrl(url).orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
-          maybeValidatedPlaylist match {
-            case Some(playlist) =>
-              val isRemoved = persistenceClient.removePlaylist(playlist, chat.getId.toString)
-              val msg = new SendMessage(
-                chat.getId.toString,
-                if (isRemoved) {
-                  s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} removed"
-                } else "Server error"
-              )
-              msg.setParseMode("MARKDOWN")
-              absSender.execute[Message, SendMessage](msg)
-            case None           =>
-              absSender.execute[Message, SendMessage](
-                new SendMessage(
-                  chat.getId.toString,
-                  "Invalid url"
-                )
-              )
+        case Nil                                            =>
+          sendTextMsg(chat.getId.toString, "/remove command requires playlist num", absSender)
+        case maybeNum :: _ if Try(maybeNum.toInt).isFailure =>
+          sendTextMsg(chat.getId.toString, s"Not a number: $maybeNum", absSender)
+        case num :: _                                       =>
+          val playlistNum = num.toInt
+          val msg = persistenceClient.removePlaylist(playlistNum, chat.getId.toString) match {
+            case DbErrorResponse(_)                 =>
+              "Sever error"
+            case SuccessfulResponse(None)           =>
+              s"No playlist with number: $playlistNum"
+            case SuccessfulResponse(Some(playlist)) =>
+              s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} removed"
           }
+          sendTextMsg(chat.getId.toString, msg, absSender)
       }
     }
   })
 
   register(new BotCommand("list", "list") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
-      val (isRetrieved, addedPlaylists) = persistenceClient.listPlaylists(chat.getId.toString)
-      val msg = (isRetrieved, addedPlaylists) match {
-        case (false, _)              =>
+      val msgStr = persistenceClient.listPlaylists(chat.getId.toString) match {
+        case DbErrorResponse(_)                     =>
           "Server error"
-        case (_, seq) if seq.isEmpty =>
+        case SuccessfulResponse(seq) if seq.isEmpty =>
           "You don't have any saved playlists"
-        case (_, seq)                =>
-          seq.zipWithIndex.map { case (playlist, idx) => s"${idx + 1}) ${playlist.playlistUrl}" }.mkString("\n")
+        case SuccessfulResponse(seq)                =>
+          seq
+            .sortBy(_.tsInserted)
+            .zipWithIndex
+            .map { case (playlist, idx) => s"${idx + 1}) ${formatTgMessage(playlist.name, playlist.playlistUrl)}" }
+            .mkString("\n")
       }
-      absSender.execute[Message, SendMessage](
-        new SendMessage(chat.getId.toString, msg)
-      )
+      sendTextMsg(chat.getId.toString, msgStr, absSender)
     }
   })
 
@@ -160,17 +140,19 @@ class Bot(token: String,
         sendTrack.setParseMode("MARKDOWN")
         this.execute(sendTrack)
       case TrackFilesInvalidGroup(tracks)      =>
-        val msg = new SendMessage(
-          chatId,
-          s"Sorry, files '$tracks' from ${formatTgMessage(msgText, msgUrl)} are too large. " +
-            s"Telegram bot message size limit is 50mb",
-        )
-        msg.setParseMode("MARKDOWN")
-        this.execute[Message, SendMessage](msg)
+        val msg = s"Sorry, files '$tracks' from ${formatTgMessage(msgText, msgUrl)} are too large. " +
+          s"Telegram bot message size limit is 50mb"
+        sendTextMsg(chatId, msg, this)
     }
   }
 
   private def formatTgMessage(text: String, url: String): String = {
     s"[$text]($url)"
+  }
+
+  private def sendTextMsg(chatId: String, msgStr: String, absSender: AbsSender): Unit = {
+    val msg = new SendMessage(chatId, msgStr)
+    msg.setParseMode("MARKDOWN")
+    absSender.execute[Message, SendMessage](msg)
   }
 }

@@ -68,7 +68,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
         if (response.code != 404) {
           val playlist = parse(response.body).flatMap(json => json.as[PlaylistResponse])
             .fold(err => throw new Exception(s"failed to get playlist page, error: $err, response: $response"), page => page)
-          Some(Playlist(pId, url, playlist.name, SpotifySource))
+          Some(Playlist(pId, url, playlist.name, SpotifySource, 0L))
         } else {
           None
         }

@@ -10,7 +10,7 @@ sealed trait TrackSource
 case object SpotifySource extends TrackSource
 case object YoutubeSource extends TrackSource
 
-case class Playlist(playlistId: String, playlistUrl: String, name: String, source: TrackSource)
+case class Playlist(playlistId: String, playlistUrl: String, name: String, source: TrackSource, tsInserted: Long)
 
 object Playlist {
   implicit val sourceDecoder: Decoder[TrackSource] = Decoder.decodeString.emap {
@@ -29,10 +29,11 @@ case class PlaylistRecord(chatId: String,
                           name: String,
                           source: TrackSource,
                           tsLastSave: Long,
+                          tsInserted: Long,
                           _id: String,
                          ) {
   def toPlaylist: Playlist = {
-    Playlist(playlistId, playlistUrl, name, source)
+    Playlist(playlistId, playlistUrl, name, source, tsInserted)
   }
 }
 
@@ -49,6 +50,7 @@ object PlaylistRecord {
       playlist.name,
       playlist.source,
       tsLastSave,
+      System.currentTimeMillis(),
       idFromPlaylistAndChatId(playlist, chatId),
     )
   }

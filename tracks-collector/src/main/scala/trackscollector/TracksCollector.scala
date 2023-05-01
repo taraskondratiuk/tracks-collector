@@ -34,7 +34,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
     for {
       _                <- IO(log.info("start collecting tracks"))
       tsStarted        = System.currentTimeMillis() / 1000
-      tracksGroupedByChatId = persistenceClient.getAllPlaylistRecords().map { p =>
+      tracksGroupedByChatId = persistenceClient.getAllPlaylistRecords().unsafeRun().map { p =>
         val tracks = p.source match {
           case SpotifySource =>
             spotifyClient
@@ -125,7 +125,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
           _ <- (IO.sleep(120.seconds) *> chatSemaphore.release).start
         } yield ()
       }
-      sendTracksIO.map(_ => persistenceClient.updateSaveTimeForPlaylist(playlistRecordId, saveTime))
+      sendTracksIO.map(_ => persistenceClient.updateSaveTimeForPlaylist(playlistRecordId, saveTime).unsafeRun())
     }
   }
 }

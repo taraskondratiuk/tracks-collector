@@ -19,7 +19,7 @@ lazy val tracksCollector = project
       "org.telegram"               % "telegrambots"                  % telegramApiVersion,
       "org.telegram"               % "telegrambotsextensions"        % telegramApiVersion,
 
-      "ch.qos.logback"             % "logback-classic"               % "1.4.5",
+      "ch.qos.logback"             % "logback-classic"               % "1.4.6",
       "com.typesafe.scala-logging" %% "scala-logging"                % "3.9.5",
 
       "org.typelevel"              %% "cats-effect"                  % catsEffectVersion,

@@ -1,6 +1,7 @@
 package clients
 
 import cats.implicits.toTraverseOps
+import clients.PersistenceClient.{DbErrorResponse, PersistenceClientResponse, SuccessfulResponse}
 import com.typesafe.scalalogging.Logger
 import io.circe.syntax._
 import io.circe.parser.parse
@@ -19,8 +20,9 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
   private val mongoClient = MongoClient(s"mongodb://$mongoUri")
   private val db          = mongoClient.getDatabase("tracks-collector-db")
   private val collection  = db.getCollection("tracks-collector-collection")
+  collection.createIndex(Document(""" { "chatId": 1 } """))
 
-  override def addPlaylist(playlist: Playlist, chatId: String): Boolean = {
+  override def addPlaylist(playlist: Playlist, chatId: String): PersistenceClientResponse[Unit] = {
     Try {
       val docs = await(
         collection
@@ -38,32 +40,44 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
     } match {
       case Success(_) =>
         log.info(s"saved playlist $playlist for chatId $chatId")
-        true
+        SuccessfulResponse(())
       case Failure(e) =>
         log.warn(s"failed to save playlist $playlist for chatId $chatId: ${e.getMessage}")
-        false
+        DbErrorResponse(e)
     }
   }
 
-  override def removePlaylist(playlist: Playlist, chatId: String): Boolean = {
-    Try {
-      await(
-        collection
-          .deleteOne(equal("_id", PlaylistRecord.idFromPlaylistAndChatId(playlist, chatId)))
-          .observable
-          .toFuture()
-      )
-    } match {
-      case Success(_) =>
-        log.info(s"removed playlist $playlist for chatId $chatId")
-        true
-      case Failure(e) =>
-        log.warn(s"failed to remove playlist $playlist for chatId $chatId: ${e.getMessage}")
-        false
-    }
+  override def removePlaylist(playlistNum: Int, chatId: String): PersistenceClientResponse[Option[Playlist]] = {
+    for {
+      playlists             <- listPlaylists(chatId)
+      maybePlaylistToRemove = playlists
+        .sortBy(_.tsInserted)
+        .zipWithIndex
+        .find { case (_, idx) => idx + 1 == playlistNum }
+      res                   <- maybePlaylistToRemove match {
+        case None                        =>
+          SuccessfulResponse(None)
+        case Some((playlistToDelete, _)) =>
+          Try {
+            await(
+              collection
+                .deleteOne(equal("_id", PlaylistRecord.idFromPlaylistAndChatId(playlistToDelete, chatId)))
+                .observable
+                .toFuture()
+            )
+          } match {
+            case Success(_) =>
+              log.info(s"removed playlist $playlistToDelete for chatId $chatId")
+              SuccessfulResponse(Some(playlistToDelete))
+            case Failure(e) =>
+              log.warn(s"failed to remove playlist $playlistToDelete for chatId $chatId: ${e.getMessage}")
+              DbErrorResponse(e)
+          }
+      }
+    } yield res
   }
 
-  override def listPlaylists(chatId: String): (Boolean, Seq[Playlist]) = {
+  override def listPlaylists(chatId: String): PersistenceClientResponse[Seq[Playlist]] = {
     documentsToPlaylistRecords(
       await(
         collection
@@ -74,14 +88,14 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
     ) match {
       case Success(res) =>
         log.info(s"list playlists for chatId $chatId")
-        true -> res.map(_.toPlaylist)
+        SuccessfulResponse(res.map(_.toPlaylist))
       case Failure(e)   =>
         log.warn(s"failed to list playlists for chatId $chatId: ${e.getMessage}")
-        false -> Seq.empty
+        DbErrorResponse(e)
     }
   }
 
-  override def getAllPlaylistRecords(): Seq[PlaylistRecord] = {
+  override def getAllPlaylistRecords(): PersistenceClientResponse[Seq[PlaylistRecord]] = {
     documentsToPlaylistRecords(
       await(
         collection
@@ -91,14 +105,14 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
       )
     ) match {
       case Success(v) =>
-        v
+        SuccessfulResponse(v)
       case Failure(e) =>
         log.warn(s"failed to get all playlist records: ${e.getMessage}")
-        throw e
+        DbErrorResponse(e)
     }
   }
 
-  override def updateSaveTimeForPlaylist(id: String, saveTime: Long): Unit = {
+  override def updateSaveTimeForPlaylist(id: String, saveTime: Long): PersistenceClientResponse[Unit] = {
     Try {
       await(
         collection
@@ -108,10 +122,10 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
       )
     } match {
       case Success(_) =>
-        ()
+        SuccessfulResponse(())
       case Failure(e) =>
         log.warn(s"failed to update playlist with id $id: ${e.getMessage}")
-        throw e
+        DbErrorResponse(e)
     }
   }
 

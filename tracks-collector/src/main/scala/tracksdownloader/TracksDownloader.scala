@@ -6,7 +6,7 @@ import models.{TrackSource, SpotifySource, YoutubeSource}
 import scala.util.{Failure, Success, Try}
 import sys.process._
 
-class TracksDownloader(spotifyClientId: String, spotifyClientSecret: String) {
+class TracksDownloader {
   private val log = Logger(getClass.getSimpleName)
 
   def downloadTrack(uri: String, outputDir: String, source: TrackSource, maybeTrackName: Option[String]): Unit = {

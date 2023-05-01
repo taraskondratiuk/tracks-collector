@@ -81,7 +81,7 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
         import io.circe.generic.auto._
         val playlistsPage = parse(response.body).flatMap(json => json.as[PlaylistsPageResponse])
           .fold(err => throw new Exception(s"failed to get playlists page, error: $err, response: $response"), page => page)
-        playlistsPage.items.headOption.map(p => Playlist(pId, url, p.snippet.title, YoutubeSource))
+        playlistsPage.items.headOption.map(p => Playlist(pId, url, p.snippet.title, YoutubeSource, 0L))
       }
   }
 }
