@@ -47,7 +47,7 @@ object Main extends IOApp {
       spotifyClient     = new SpotifyClient(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
       youtubeClient     = new YoutubeClient(YOUTUBE_API_KEY)
       persistenceClient = new MongoPersistenceClient(MONGO_URI)
-      downloader        = new TracksDownloader(SPOTIFY_CLIENT_ID,SPOTIFY_CLIENT_SECRET)
+      downloader        = new TracksDownloader
       bot               = botInit(spotifyClient, youtubeClient, persistenceClient)
       tracksCollector   = new TracksCollector(
         spotifyClient,
