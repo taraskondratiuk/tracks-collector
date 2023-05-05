@@ -1,20 +1,19 @@
 package clients
 
 import io.circe.parser.parse
-import models.{Playlist, YoutubeSource}
+import models.{Playlist, Track, YoutubeSource}
 import scalaj.http.{Http, HttpResponse}
 import utils.DateUtil
-import validators.UrlValidator
 
 import scala.annotation.tailrec
 
-class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
+class YoutubeClient(youtubeApiKey: String) {
 
   private val YT_API_BASE_URI = "https://www.googleapis.com/youtube/v3"
 
-  private case class PlaylistsPageResponse(items: Seq[YtPlaylist])
+  private case class YoutubeApiPageResponse(items: Seq[YtItem])
 
-  private case class YtPlaylist(snippet: Snippet)
+  private case class YtItem(snippet: Snippet)
 
   private case class PlaylistItemsPageResponse(items: Seq[YtVideo], nextPageToken: Option[String])
 
@@ -22,7 +21,11 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
 
   private case class ContentDetails(videoId: String)
 
-  private case class Snippet(publishedAt: String, videoOwnerChannelTitle: Option[String], title: String)
+  private case class Snippet(publishedAt: String,
+                             videoOwnerChannelTitle: Option[String],
+                             title: String,
+                             channelTitle: Option[String],
+                            )
 
   case class YoutubeTrackInfo(name: String, url: String)
 
@@ -33,7 +36,7 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
            pageToken: Option[String] = None,
            acc: Seq[YoutubeTrackInfo] = Seq.empty,
           ): Seq[YoutubeTrackInfo] = {
-      val response: HttpResponse[String] = Http(s"$YT_API_BASE_URI/playlistItems")
+      val resp: HttpResponse[String] = Http(s"$YT_API_BASE_URI/playlistItems")
         .params(Map(
           "playlistId" -> playlistId,
           "key"        -> youtubeApiKey,
@@ -42,8 +45,8 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
           "pageToken"  -> pageToken.getOrElse(""),
         )).asString
       import io.circe.generic.auto._
-      val playlistItemsPage = parse(response.body).flatMap(json => json.as[PlaylistItemsPageResponse])
-        .fold(err => throw new Exception(s"failed to get playlist items page, error: $err, response: $response"), page => page)
+      val playlistItemsPage = parse(resp.body).flatMap(json => json.as[PlaylistItemsPageResponse])
+        .fold(err => throw new Exception(s"failed to get playlist items page, error: $err, response: $resp"), p => p)
       val allVideoUrls = acc ++ playlistItemsPage
         .items
         .filter(v => DateUtil.stringDateToEpochSecond(v.snippet.publishedAt) >= fromTs)
@@ -64,7 +67,7 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
     go(playlistId, fromTs)
   }
 
-  override def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
+  def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
     val ytPlaylistIdPattern = """.*list=(.*?)(&.*)?""".r
     val maybePlaylistId = url match {
       case ytPlaylistIdPattern(playlistId, _) => Some(playlistId)
@@ -72,16 +75,46 @@ class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
     }
     maybePlaylistId
       .flatMap { pId =>
-        val response: HttpResponse[String] = Http(s"$YT_API_BASE_URI/playlists")
+        val resp: HttpResponse[String] = Http(s"$YT_API_BASE_URI/playlists")
           .params(Map(
             "id"   -> pId,
             "key"  -> youtubeApiKey,
             "part" -> "snippet",
           )).asString
         import io.circe.generic.auto._
-        val playlistsPage = parse(response.body).flatMap(json => json.as[PlaylistsPageResponse])
-          .fold(err => throw new Exception(s"failed to get playlists page, error: $err, response: $response"), page => page)
+        val playlistsPage = parse(resp.body).flatMap(json => json.as[YoutubeApiPageResponse])
+          .fold(err => throw new Exception(s"failed to get playlists page, error: $err, response: $resp"), p => p)
         playlistsPage.items.headOption.map(p => Playlist(pId, url, p.snippet.title, YoutubeSource, 0L))
+      }
+  }
+
+  def maybeExtractTrackFromUrl(url: String): Option[Track] = {
+    val ytTrackIdPattern1 = """.*v=(.*?)(&.*)?""".r
+    val ytTrackIdPattern2 = """.+/(.*?)(\?.*)?$""".r
+    val maybeTrackId = url match {
+      case ytTrackIdPattern1(trackId, _) => Some(trackId)
+      case ytTrackIdPattern2(trackId, _) => Some(trackId)
+      case _                             => None
+    }
+    maybeTrackId
+      .flatMap { trackId =>
+        val resp: HttpResponse[String] = Http(s"$YT_API_BASE_URI/videos")
+          .params(Map(
+            "id"   -> trackId,
+            "key"  -> youtubeApiKey,
+            "part" -> "snippet",
+          )).asString
+        import io.circe.generic.auto._
+        val tracksPage = parse(resp.body).flatMap(json => json.as[YoutubeApiPageResponse])
+          .fold(err => throw new Exception(s"failed to get tracks page, error: $err, response: $resp"), p => p)
+        tracksPage.items.headOption.map { v =>
+          val channel = v.snippet.channelTitle.getOrElse("")
+          val title = v.snippet.title
+          val fullTitle = if (channel.endsWith(" - Topic")) { //YTMusic case
+            s"${channel.replace(" - Topic", "")} - $title"
+          } else title
+          Track(trackId, url, fullTitle, YoutubeSource)
+        }
       }
   }
 }

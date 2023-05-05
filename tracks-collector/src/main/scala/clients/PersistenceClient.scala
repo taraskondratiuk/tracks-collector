@@ -1,19 +1,31 @@
 package clients
 
 import clients.PersistenceClient.PersistenceClientResponse
-import models.{Playlist, PlaylistRecord}
+import models.{Playlist, Track, TrackedPlaylistRecord, UntrackedPlaylistRecord, UntrackedTrackRecord}
 
 trait PersistenceClient {
 
-  def addPlaylist(playlist: Playlist, chatId: String): PersistenceClientResponse[Unit]
+  def addTrackedPlaylist(playlist: Playlist, chatId: String): PersistenceClientResponse[Unit]
 
-  def removePlaylist(playlistNum: Int, chatId: String): PersistenceClientResponse[Option[Playlist]]
+  def addUntrackedPlaylist(playlist: Playlist, chatId: String): PersistenceClientResponse[Unit]
 
-  def listPlaylists(chatId: String): PersistenceClientResponse[Seq[Playlist]]
+  def addUntrackedTrack(track: Track, chatId: String): PersistenceClientResponse[Unit]
 
-  def getAllPlaylistRecords(): PersistenceClientResponse[Seq[PlaylistRecord]]
+  def removeTrackedPlaylist(playlistNum: Int, chatId: String): PersistenceClientResponse[Option[Playlist]]
 
-  def updateSaveTimeForPlaylist(id: String, saveTime: Long): PersistenceClientResponse[Unit]
+  def listTrackedPlaylists(chatId: String): PersistenceClientResponse[Seq[Playlist]]
+
+  def getAllUntrackedPlaylistRecords(): PersistenceClientResponse[Seq[UntrackedPlaylistRecord]]
+
+  def getAllUntrackedTracksRecords(): PersistenceClientResponse[Seq[UntrackedTrackRecord]]
+
+  def removeUntrackedTrack(_id: String, chatId: String): PersistenceClientResponse[Unit]
+
+  def removeUntrackedPlaylist(_id: String, chatId: String): PersistenceClientResponse[Unit]
+
+  def getAllTrackedPlaylistRecords(): PersistenceClientResponse[Seq[TrackedPlaylistRecord]]
+
+  def updateSaveTimeForTrackedPlaylist(id: String, saveTime: Long): PersistenceClientResponse[Unit]
 }
 
 object PersistenceClient {

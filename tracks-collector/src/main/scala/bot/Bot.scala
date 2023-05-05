@@ -1,9 +1,8 @@
 package bot
 
-
-import clients.{PersistenceClient, SpotifyClient, YoutubeClient}
+import clients.PersistenceClient
 import clients.PersistenceClient.{DbErrorResponse, SuccessfulResponse}
-import models.TrackFilesGroup
+import models.{Playlist, Track, TrackFilesGroup}
 import models.TrackFilesGroup.{TrackFilesInvalidGroup, TrackFilesValidGroup, TrackFilesValidSingleElement}
 import org.telegram.telegrambots.extensions.bots.commandbot.TelegramLongPollingCommandBot
 import org.telegram.telegrambots.extensions.bots.commandbot.commands.BotCommand
@@ -11,18 +10,35 @@ import org.telegram.telegrambots.meta.api.methods.send.{SendAudio, SendMediaGrou
 import org.telegram.telegrambots.meta.api.objects._
 import org.telegram.telegrambots.meta.api.objects.media.{InputMedia, InputMediaAudio}
 import org.telegram.telegrambots.meta.bots.AbsSender
+import validators.UrlValidator
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.Try
 
 class Bot(token: String,
-          spotifyClient: SpotifyClient,
-          youtubeClient: YoutubeClient,
+          spotifyClient: UrlValidator,
+          youtubeClient: UrlValidator,
           persistenceClient: PersistenceClient,
          ) extends TelegramLongPollingCommandBot {
   override def getBotToken: String = token
 
   override def getBotUsername: String = "tracks collector"
+
+  private case class Media(name: String, url: String) {
+    def toStringMarkdown(): String = {
+      s"[${name.replaceAll("[\\[\\]]", "")}]($url)"
+    }
+  }
+
+  private object Media {
+    def apply(playlist: Playlist): Media = {
+      Media(playlist.name, playlist.playlistUrl)
+    }
+
+    def apply(track: Track): Media = {
+      Media(track.name, track.trackUrl)
+    }
+  }
 
   register(new BotCommand("start", "start") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
@@ -36,9 +52,15 @@ class Bot(token: String,
 
   register(new BotCommand("help", "help") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
+      val commands = Seq(
+        "/add <Spotify/Youtube playlist url>",
+        "/remove <playlist number to remove>",
+        "/list",
+        "/download <Spotify/Youtube playlist/track url>",
+      )
       sendTextMsg(
         chat.getId.toString,
-        "/add <Spotify/Youtube playlist url>\n/remove <Spotify/Youtube playlist url>\n/list",
+        commands.mkString("\n"),
         absSender,
       )
     }
@@ -58,9 +80,9 @@ class Bot(token: String,
             .orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
           maybeValidatedPlaylist match {
             case Some(playlist) =>
-              val msgStr = persistenceClient.addPlaylist(playlist, chat.getId.toString) match {
+              val msgStr = persistenceClient.addTrackedPlaylist(playlist, chat.getId.toString) match {
                 case SuccessfulResponse(_) =>
-                  s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} saved"
+                  s"Playlist ${Media(playlist).toStringMarkdown()} saved"
                 case DbErrorResponse(_)    =>
                   "Server error"
               }
@@ -68,6 +90,46 @@ class Bot(token: String,
             case None           =>
               sendTextMsg(chat.getId.toString, "Invalid url", absSender)
           }
+      }
+    }
+  })
+
+  register(new BotCommand("download", "download") {
+    override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
+      arguments.toList match {
+        case Nil =>
+          sendTextMsg(
+            chat.getId.toString,
+            "/download command requires Spotify/Youtube playlist/track url in format" +
+              "\n/download <Spotify/Youtube playlist/track url>",
+            absSender,
+          )
+        case url :: _ =>
+          val maybeValidatedPlaylist = spotifyClient.maybeExtractPlaylistFromUrl(url)
+            .orElse(youtubeClient.maybeExtractPlaylistFromUrl(url))
+          val maybeValidatedTrack = spotifyClient.maybeExtractTrackFromUrl(url)
+            .orElse(youtubeClient.maybeExtractTrackFromUrl(url))
+
+          val msg = (maybeValidatedPlaylist, maybeValidatedTrack) match {
+            case (Some(playlist), _) =>
+              persistenceClient.addUntrackedPlaylist(playlist, chat.getId.toString) match {
+                case SuccessfulResponse(_) =>
+                  s"Added ${Media(playlist).toStringMarkdown()} to download queue"
+                case DbErrorResponse(_)    =>
+                  "Server error"
+              }
+            case (_, Some(track))    =>
+              persistenceClient.addUntrackedTrack(track, chat.getId.toString) match {
+                case SuccessfulResponse(_) =>
+                  s"Added ${Media(track).toStringMarkdown()} to download queue"
+                case DbErrorResponse(_)    =>
+                  "Server error"
+              }
+            case _ =>
+              "Invalid url"
+          }
+
+          sendTextMsg(chat.getId.toString, msg, absSender)
       }
     }
   })
@@ -81,13 +143,13 @@ class Bot(token: String,
           sendTextMsg(chat.getId.toString, s"Not a number: $maybeNum", absSender)
         case num :: _                                       =>
           val playlistNum = num.toInt
-          val msg = persistenceClient.removePlaylist(playlistNum, chat.getId.toString) match {
+          val msg = persistenceClient.removeTrackedPlaylist(playlistNum, chat.getId.toString) match {
             case DbErrorResponse(_)                 =>
               "Sever error"
             case SuccessfulResponse(None)           =>
               s"No playlist with number: $playlistNum"
             case SuccessfulResponse(Some(playlist)) =>
-              s"Playlist ${formatTgMessage(playlist.name, playlist.playlistUrl)} removed"
+              s"Playlist ${Media(playlist).toStringMarkdown()} removed"
           }
           sendTextMsg(chat.getId.toString, msg, absSender)
       }
@@ -96,7 +158,7 @@ class Bot(token: String,
 
   register(new BotCommand("list", "list") {
     override def execute(absSender: AbsSender, user: User, chat: Chat, arguments: Array[String]): Unit = {
-      val msgStr = persistenceClient.listPlaylists(chat.getId.toString) match {
+      val msgStr = persistenceClient.listTrackedPlaylists(chat.getId.toString) match {
         case DbErrorResponse(_)                     =>
           "Server error"
         case SuccessfulResponse(seq) if seq.isEmpty =>
@@ -105,7 +167,7 @@ class Bot(token: String,
           seq
             .sortBy(_.tsInserted)
             .zipWithIndex
-            .map { case (playlist, idx) => s"${idx + 1}) ${formatTgMessage(playlist.name, playlist.playlistUrl)}" }
+            .map { case (playlist, idx) => s"${idx + 1}) ${Media(playlist).toStringMarkdown()}" }
             .mkString("\n")
       }
       sendTextMsg(chat.getId.toString, msgStr, absSender)
@@ -115,6 +177,7 @@ class Bot(token: String,
   override def processNonCommandUpdate(update: Update): Unit = ()
 
   def sendTracks(tracksGroup: TrackFilesGroup, msgText: String, msgUrl: String, chatId: String): Unit = {
+    val m = Media(msgText, msgUrl)
     tracksGroup match {
       case TrackFilesValidGroup(tracks)        =>
         val sendTrack = new SendMediaGroup()
@@ -124,7 +187,7 @@ class Bot(token: String,
           media.setMedia(trackFile.file, trackFile.name)
           media.setTitle(trackFile.name)
           if (idx == tracks.length - 1) {
-            media.setCaption(formatTgMessage(msgText, msgUrl))
+            media.setCaption(m.toStringMarkdown())
             media.setParseMode("MARKDOWN")
           }
           media.asInstanceOf[InputMedia]
@@ -136,18 +199,14 @@ class Bot(token: String,
         sendTrack.setAudio(new InputFile(track.file))
         sendTrack.setChatId(chatId)
         sendTrack.setTitle(track.file.getName)
-        sendTrack.setCaption(formatTgMessage(msgText, msgUrl))
+        sendTrack.setCaption(m.toStringMarkdown())
         sendTrack.setParseMode("MARKDOWN")
         this.execute(sendTrack)
       case TrackFilesInvalidGroup(tracks)      =>
-        val msg = s"Sorry, files '$tracks' from ${formatTgMessage(msgText, msgUrl)} are too large. " +
+        val msg = s"Sorry, files '$tracks' from ${m.toStringMarkdown()} are too large. " +
           s"Telegram bot message size limit is 50mb"
         sendTextMsg(chatId, msg, this)
     }
-  }
-
-  private def formatTgMessage(text: String, url: String): String = {
-    s"[$text]($url)"
   }
 
   private def sendTextMsg(chatId: String, msgStr: String, absSender: AbsSender): Unit = {

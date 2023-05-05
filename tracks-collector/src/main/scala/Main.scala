@@ -1,6 +1,7 @@
 import bot.Bot
 import cats.effect.std.Semaphore
 import cats.effect.{ExitCode, IO, IOApp}
+import cats.implicits.catsSyntaxParallelSequence1
 import clients.{MongoPersistenceClient, PersistenceClient, SpotifyClient, YoutubeClient}
 import com.typesafe.scalalogging.Logger
 import org.telegram.telegrambots.meta.TelegramBotsApi
@@ -22,16 +23,29 @@ object Main extends IOApp {
   private val log = Logger(this.getClass.getSimpleName)
 
   override def run(args: List[String]): IO[ExitCode] = {
-    def collectorIO(s: Semaphore[IO], tracksCollector: TracksCollector): IO[Unit] = {
+    def trackedPlaylistsCollectorIO(s: Semaphore[IO], tracksCollector: TracksCollector): IO[Unit] = {
       for {
         isNonRunning <- s.tryAcquire
         _            <- if (isNonRunning) {
           val collectIO = tracksCollector
-            .collectTracks()
-            .handleError(e => log.warn(s"tracks collector failed: ${e.getMessage}"))
+            .collectTracksFromTrackedPlaylists()
+            .handleError(e => log.warn(s"tracked tracks collector failed: ${e.getMessage}"))
           (collectIO *> s.release).start
-        } else IO(log.warn("previous collect job not finished yet"))
+        } else IO(log.warn("previous tracked collect job not finished yet"))
         _            <- IO.sleep(30.minutes)
+      } yield ()
+    }
+
+    def untrackedPlaylistsCollectorIO(s: Semaphore[IO], tracksCollector: TracksCollector): IO[Unit] = {
+      for {
+        isNonRunning <- s.tryAcquire
+        _            <- if (isNonRunning) {
+          val downloadIO = tracksCollector
+            .collectUntrackedTracksOrPlaylists()
+            .handleError(e => log.warn(s"untracked tracks collector failed: ${e.getMessage}"))
+          (downloadIO *> s.release).start
+        } else IO(log.warn("previous untracked collect job not finished yet"))
+        _            <- IO.sleep(1.minutes)
       } yield ()
     }
 
@@ -42,14 +56,16 @@ object Main extends IOApp {
       log.info("bot started")
       bot
     }
+
     for {
-      semaphore         <- Semaphore[IO](1)
-      spotifyClient     = new SpotifyClient(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
-      youtubeClient     = new YoutubeClient(YOUTUBE_API_KEY)
-      persistenceClient = new MongoPersistenceClient(MONGO_URI)
-      downloader        = new TracksDownloader
-      bot               = botInit(spotifyClient, youtubeClient, persistenceClient)
-      tracksCollector   = new TracksCollector(
+      trackedPlaylistsSemaphore   <- Semaphore[IO](1)
+      untrackedPlaylistsSemaphore <- Semaphore[IO](1)
+      spotifyClient               = new SpotifyClient(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
+      youtubeClient               = new YoutubeClient(YOUTUBE_API_KEY)
+      persistenceClient           = new MongoPersistenceClient(MONGO_URI)
+      downloader                  = new TracksDownloader
+      bot                         = botInit(spotifyClient, youtubeClient, persistenceClient)
+      tracksCollector             = new TracksCollector(
         spotifyClient,
         youtubeClient,
         persistenceClient,
@@ -57,7 +73,11 @@ object Main extends IOApp {
         bot,
         TRACKS_DIR,
       )
-      _                 <- IO.sleep(2.minutes) *> collectorIO(semaphore, tracksCollector).foreverM
+      _                           <- IO.sleep(2.minutes)
+      _                           <- Seq(
+        trackedPlaylistsCollectorIO(trackedPlaylistsSemaphore, tracksCollector).foreverM,
+        untrackedPlaylistsCollectorIO(untrackedPlaylistsSemaphore, tracksCollector).foreverM,
+      ).parSequence
     } yield ExitCode.Success
   }
 }

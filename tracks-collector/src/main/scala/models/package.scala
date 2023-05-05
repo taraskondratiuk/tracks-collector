@@ -1,7 +1,7 @@
 package models
 
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
-import io.circe.{Decoder, Encoder}
+import io.circe.generic.semiauto.{deriveCodec, deriveDecoder, deriveEncoder}
+import io.circe.{Codec, Decoder, Encoder}
 
 import java.io.File
 import scala.collection.mutable
@@ -10,40 +10,112 @@ sealed trait TrackSource
 case object SpotifySource extends TrackSource
 case object YoutubeSource extends TrackSource
 
+case class Track(trackId: String, trackUrl: String, name: String, source: TrackSource)
+
 case class Playlist(playlistId: String, playlistUrl: String, name: String, source: TrackSource, tsInserted: Long)
 
 object Playlist {
-  implicit val sourceDecoder: Decoder[TrackSource] = Decoder.decodeString.emap {
-    case "SpotifySource" => Right(SpotifySource)
-    case "YoutubeSource" => Right(YoutubeSource)
-    case bad             => Left(s"unknown source: $bad")
-  }
-  implicit val sourceEncoder: Encoder[TrackSource] = Encoder.encodeString.contramap[TrackSource](_.toString)
-  val playlistRecordDecoder: Decoder[PlaylistRecord] = deriveDecoder[PlaylistRecord]
-  val playlistRecordEncoder: Encoder[PlaylistRecord] = deriveEncoder[PlaylistRecord]
+  implicit val sourceCodec: Codec[TrackSource] = deriveCodec[TrackSource]
+  val trackedPlaylistRecordDecoder: Decoder[TrackedPlaylistRecord] = deriveDecoder[TrackedPlaylistRecord]
+  val trackedPlaylistRecordEncoder: Encoder[TrackedPlaylistRecord] = deriveEncoder[TrackedPlaylistRecord]
+  val untrackedPlaylistRecordDecoder: Decoder[UntrackedPlaylistRecord] = deriveDecoder[UntrackedPlaylistRecord]
+  val untrackedPlaylistRecordEncoder: Encoder[UntrackedPlaylistRecord] = deriveEncoder[UntrackedPlaylistRecord]
+  val untrackedTrackRecordDecoder: Decoder[UntrackedTrackRecord] = deriveDecoder[UntrackedTrackRecord]
+  val untrackedTrackRecordEncoder: Encoder[UntrackedTrackRecord] = deriveEncoder[UntrackedTrackRecord]
 }
 
-case class PlaylistRecord(chatId: String,
-                          playlistId: String,
-                          playlistUrl: String,
-                          name: String,
-                          source: TrackSource,
-                          tsLastSave: Long,
-                          tsInserted: Long,
-                          _id: String,
+sealed trait UntrackedMedia {
+  def chatId: String
+  def source: TrackSource
+  def url: String
+  def name: String
+  def _id: String
+  def tsInserted: Long
+}
+
+case class UntrackedPlaylistRecord(chatId: String,
+                                   playlistId: String,
+                                   playlistUrl: String,
+                                   name: String,
+                                   source: TrackSource,
+                                   tsInserted: Long,
+                                   _id: String,
+                                  ) extends UntrackedMedia {
+  def toPlaylist: Playlist = {
+    Playlist(playlistId, playlistUrl, name, source, tsInserted)
+  }
+
+  override def url: String = playlistUrl
+}
+
+object UntrackedPlaylistRecord {
+  def idFromPlaylistAndChatId(playlist: Playlist, chatId: String): String = {
+    s"${playlist.playlistId}${playlist.source}$chatId"
+  }
+
+  def apply(playlist: Playlist, chatId: String): UntrackedPlaylistRecord = {
+    UntrackedPlaylistRecord(
+      chatId,
+      playlist.playlistId,
+      playlist.playlistUrl,
+      playlist.name,
+      playlist.source,
+      System.currentTimeMillis(),
+      idFromPlaylistAndChatId(playlist, chatId),
+    )
+  }
+}
+
+case class UntrackedTrackRecord(chatId: String,
+                                trackId: String,
+                                trackUrl: String,
+                                name: String,
+                                source: TrackSource,
+                                tsInserted: Long,
+                                _id: String,
+                               ) extends UntrackedMedia {
+  override def url: String = trackUrl
+}
+
+object UntrackedTrackRecord {
+  def idFromTrackAndChatId(track: Track, chatId: String): String = {
+    s"${track.trackId}${track.source}$chatId"
+  }
+
+  def apply(track: Track, chatId: String): UntrackedTrackRecord = {
+    UntrackedTrackRecord(
+      chatId,
+      track.trackId,
+      track.trackUrl,
+      track.name,
+      track.source,
+      System.currentTimeMillis(),
+      idFromTrackAndChatId(track, chatId),
+    )
+  }
+}
+
+case class TrackedPlaylistRecord(chatId: String,
+                                 playlistId: String,
+                                 playlistUrl: String,
+                                 name: String,
+                                 source: TrackSource,
+                                 tsLastSave: Long,
+                                 tsInserted: Long,
+                                 _id: String,
                          ) {
   def toPlaylist: Playlist = {
     Playlist(playlistId, playlistUrl, name, source, tsInserted)
   }
 }
 
-object PlaylistRecord {
+object TrackedPlaylistRecord {
   def idFromPlaylistAndChatId(playlist: Playlist, chatId: String): String = {
     s"${playlist.playlistId}${playlist.source}$chatId"
   }
 
-  def apply(playlist: Playlist, chatId: String, tsLastSave: Long = 0): PlaylistRecord = {
-    PlaylistRecord(
+  def apply(playlist: Playlist, chatId: String, tsLastSave: Long = 0): TrackedPlaylistRecord = {
+    TrackedPlaylistRecord(
       chatId,
       playlist.playlistId,
       playlist.playlistUrl,

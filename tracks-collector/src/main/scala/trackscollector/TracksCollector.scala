@@ -6,7 +6,7 @@ import cats.effect.std.Semaphore
 import cats.syntax.traverse.toTraverseOps
 import clients.{PersistenceClient, SpotifyClient, YoutubeClient}
 import com.typesafe.scalalogging.Logger
-import models.{SpotifySource, TrackFilesGroup, TrackSource, YoutubeSource}
+import models.{SpotifySource, TrackFilesGroup, TrackSource, UntrackedMedia, UntrackedPlaylistRecord, UntrackedTrackRecord, YoutubeSource}
 import tracksdownloader.TracksDownloader
 
 import java.io.File
@@ -23,18 +23,23 @@ class TracksCollector(spotifyClient: SpotifyClient,
   private val log = Logger(this.getClass.getSimpleName)
 
   private case class Chat(chatId: String)
-  private case class TracksFromPlaylist(tracks: Seq[Track],
-                                        playlistName: String,
-                                        playlistUrl: String,
-                                        playlistRecordId: String,
-                                       )
+  private case class MediaGroup(tracks: Seq[Track],
+                                groupName: String,
+                                groupUrl: String,
+                                recordId: String,
+                                mediaGroupType: MediaGroupType,
+                               )
+  private sealed trait MediaGroupType
+  private case class Tracked(tsUpdate: Long) extends MediaGroupType
+  private case class UntrackedTrack(tsInserted: Long) extends MediaGroupType
+  private case class UntrackedPlaylist(tsInserted: Long) extends MediaGroupType
   private case class Track(url: String, source: TrackSource, maybeTrackName: Option[String] = None)
 
-  def collectTracks(): IO[Unit] = {
+  def collectTracksFromTrackedPlaylists(): IO[Unit] = {
     for {
-      _                <- IO(log.info("start collecting tracks"))
-      tsStarted        = System.currentTimeMillis() / 1000
-      tracksGroupedByChatId = persistenceClient.getAllPlaylistRecords().unsafeRun().map { p =>
+      _                     <- IO(log.info("start collecting tracked playlists"))
+      tsStarted             = System.currentTimeMillis() / 1000
+      tracksGroupedByChatId = persistenceClient.getAllTrackedPlaylistRecords().unsafeRun().map { p =>
         val tracks = p.source match {
           case SpotifySource =>
             spotifyClient
@@ -45,33 +50,72 @@ class TracksCollector(spotifyClient: SpotifyClient,
               .getYoutubeTracksInfoFromPlaylist(p.playlistId, p.tsLastSave)
               .map(ytTrackInfo => Track(ytTrackInfo.url, YoutubeSource, Some(ytTrackInfo.name)))
         }
-        Chat(p.chatId) -> TracksFromPlaylist(tracks, p.name, p.playlistUrl, p._id)
+        Chat(p.chatId) -> MediaGroup(tracks, p.name, p.playlistUrl, p._id, Tracked(tsStarted))
       }.groupMapReduce { case (k, _) => k } { case (_, v) => Seq(v) } { case (values1, values2) => values1 ++ values2 }
-      _                <- tracksGroupedByChatId.map { case (Chat(chatId), playlists) =>
-        sendTracksForSingleChat(chatId, playlists, tsStarted)
-          .handleError(e => log.info(s"failed to collect tracks for chatId $chatId: ${e.getMessage}"))
+      _                     <- tracksGroupedByChatId.map { case (Chat(chatId), playlists) =>
+        sendTracksForSingleChat(chatId, playlists, "tracked")
+          .handleError(e => log.info(s"failed to collect tracked tracks for chatId $chatId: ${e.getMessage}"))
       }.toList.sequence
-      _                = log.info("finish collecting tracks")
+      _                     = log.info("finish collecting tracked playlists")
+    } yield ()
+  }
+
+  def collectUntrackedTracksOrPlaylists(): IO[Unit] = {
+    for {
+      _ <- IO(log.info("start collecting untracked tracks/playlists"))
+      tracksOrPlaylistsGroupedByChatId =
+        (persistenceClient.getAllUntrackedTracksRecords().unsafeRun()
+          ++ persistenceClient.getAllUntrackedPlaylistRecords().unsafeRun()).map { m: UntrackedMedia =>
+          val (tracks, mediaGroupType) = (m, m.source) match {
+            case (p: UntrackedPlaylistRecord, YoutubeSource) =>
+              val tracks = youtubeClient
+                .getYoutubeTracksInfoFromPlaylist(p.playlistId, 0L)
+                .map(ytTrackInfo => Track(ytTrackInfo.url, YoutubeSource, Some(ytTrackInfo.name)))
+              tracks -> UntrackedPlaylist(p.tsInserted)
+            case (p: UntrackedPlaylistRecord, SpotifySource) =>
+              val tracks = spotifyClient
+                .getSpotifyTrackUrlsFromPlaylist(p.playlistId, 0L)
+                .map(url => Track(url, SpotifySource))
+              tracks -> UntrackedPlaylist(p.tsInserted)
+            case (t: UntrackedTrackRecord, YoutubeSource)    =>
+              Seq(Track(t.trackUrl, YoutubeSource, Some(t.name))) -> UntrackedTrack(t.tsInserted)
+            case (t: UntrackedTrackRecord, SpotifySource)    =>
+              Seq(Track(t.trackUrl, SpotifySource)) -> UntrackedTrack(t.tsInserted)
+          }
+          Chat(m.chatId) -> MediaGroup(tracks, m.name, m.url, m._id, mediaGroupType)
+        }.groupMapReduce { case (k, _) => k } { case (_, v) => Seq(v) } { case (values1, values2) => values1 ++ values2 }
+      _ <- tracksOrPlaylistsGroupedByChatId.map { case (Chat(chatId), playlists) =>
+        sendTracksForSingleChat(chatId, playlists, "untracked")
+          .handleError(e => log.info(s"failed to collect untracked tracks for chatId $chatId: ${e.getMessage}"))
+      }.toList.sequence
+      _ = log.info("finish collecting untracked tracks/playlists")
     } yield ()
   }
 
   private def sendTracksForSingleChat(chatId: String,
-                                      playlists: Seq[TracksFromPlaylist],
-                                      saveTime: Long,
+                                      mediaGroups: Seq[MediaGroup],
+                                      songDirSuffix: String,
                                       chatSemaphore: IO[Semaphore[IO]] = Semaphore[IO](5),
                                      ): IO[Unit] = {
     for {
       s        <- chatSemaphore
-      chatPath = s"$tracksDir/$chatId"
-      _        <- playlists
+      chatPath = s"$tracksDir/$chatId$songDirSuffix"
+      _        <- mediaGroups
+        .sortBy { v =>
+          v.mediaGroupType match {
+            case Tracked(_)                    => 0L
+            case UntrackedTrack(tsInserted)    => tsInserted
+            case UntrackedPlaylist(tsInserted) => tsInserted
+          }
+        }
         .traverse(p =>
-          sendTracksForSingleChatFromSinglePlaylist(
+          sendTracksForSingleChatFromSingleMediaGroup(
             chatId,
-            p.playlistName,
-            p.playlistUrl,
+            p.groupName,
+            p.groupUrl,
             p.tracks,
-            saveTime,
-            p.playlistRecordId,
+            p.mediaGroupType,
+            p.recordId,
             chatPath,
             s,
           )
@@ -79,15 +123,15 @@ class TracksCollector(spotifyClient: SpotifyClient,
     } yield ()
   }
 
-  private def sendTracksForSingleChatFromSinglePlaylist(chatId: String,
-                                                        playlistName: String,
-                                                        playlistUrl: String,
-                                                        tracks: Seq[Track],
-                                                        saveTime: Long,
-                                                        playlistRecordId: String,
-                                                        chatPath: String,
-                                                        chatSemaphore: Semaphore[IO],
-                                                       ): IO[Unit] = IO.defer {
+  private def sendTracksForSingleChatFromSingleMediaGroup(chatId: String,
+                                                          mediaName: String,
+                                                          mediaUrl: String,
+                                                          tracks: Seq[Track],
+                                                          mediaGroupType: MediaGroupType,
+                                                          recordId: String,
+                                                          chatPath: String,
+                                                          chatSemaphore: Semaphore[IO],
+                                                         ): IO[Unit] = IO.defer {
     val chatTracksDir = new File(chatPath)
     chatTracksDir.mkdirs
     chatTracksDir.listFiles.filter(_.isFile).map(_.delete())
@@ -105,7 +149,7 @@ class TracksCollector(spotifyClient: SpotifyClient,
       val sendTracksIO = tracksGroups.traverse { tracksGroup =>
         val sendTracksIO = IO {
           log.info(s"sending $tracksGroup")
-          bot.sendTracks(tracksGroup, playlistName, playlistUrl, chatId)
+          bot.sendTracks(tracksGroup, mediaName, mediaUrl, chatId)
         }
         for {
           _ <- chatSemaphore.acquire
@@ -125,7 +169,16 @@ class TracksCollector(spotifyClient: SpotifyClient,
           _ <- (IO.sleep(120.seconds) *> chatSemaphore.release).start
         } yield ()
       }
-      sendTracksIO.map(_ => persistenceClient.updateSaveTimeForPlaylist(playlistRecordId, saveTime).unsafeRun())
+      sendTracksIO.map { _ =>
+        mediaGroupType match {
+          case Tracked(tsSaved)     =>
+            persistenceClient.updateSaveTimeForTrackedPlaylist(recordId, tsSaved).unsafeRun()
+          case UntrackedTrack(_)    =>
+            persistenceClient.removeUntrackedTrack(recordId, chatId)
+          case UntrackedPlaylist(_) =>
+            persistenceClient.removeUntrackedPlaylist(recordId, chatId)
+        }
+      }
     }
   }
 }
