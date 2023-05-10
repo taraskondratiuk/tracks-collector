@@ -7,7 +7,7 @@ import utils.DateUtil
 
 import scala.annotation.tailrec
 
-class YoutubeClient(youtubeApiKey: String) {
+class YoutubeClient(youtubeApiKey: String) extends UrlValidator {
 
   private val YT_API_BASE_URI = "https://www.googleapis.com/youtube/v3"
 
@@ -67,7 +67,7 @@ class YoutubeClient(youtubeApiKey: String) {
     go(playlistId, fromTs)
   }
 
-  def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
+  override def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
     val ytPlaylistIdPattern = """.*list=(.*?)(&.*)?""".r
     val maybePlaylistId = url match {
       case ytPlaylistIdPattern(playlistId, _) => Some(playlistId)
@@ -88,7 +88,7 @@ class YoutubeClient(youtubeApiKey: String) {
       }
   }
 
-  def maybeExtractTrackFromUrl(url: String): Option[Track] = {
+  override def maybeExtractTrackFromUrl(url: String): Option[Track] = {
     val ytTrackIdPattern1 = """.*v=(.*?)(&.*)?""".r
     val ytTrackIdPattern2 = """.+/(.*?)(\?.*)?$""".r
     val maybeTrackId = url match {

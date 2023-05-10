@@ -1,6 +1,6 @@
 package bot
 
-import clients.PersistenceClient
+import clients.{PersistenceClient, UrlValidator}
 import clients.PersistenceClient.{DbErrorResponse, SuccessfulResponse}
 import models.{Playlist, Track, TrackFilesGroup}
 import models.TrackFilesGroup.{TrackFilesInvalidGroup, TrackFilesValidGroup, TrackFilesValidSingleElement}
@@ -10,7 +10,6 @@ import org.telegram.telegrambots.meta.api.methods.send.{SendAudio, SendMediaGrou
 import org.telegram.telegrambots.meta.api.objects._
 import org.telegram.telegrambots.meta.api.objects.media.{InputMedia, InputMediaAudio}
 import org.telegram.telegrambots.meta.bots.AbsSender
-import validators.UrlValidator
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.Try

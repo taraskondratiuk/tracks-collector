@@ -7,7 +7,7 @@ import utils.DateUtil
 
 import scala.annotation.tailrec
 
-class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) {
+class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extends UrlValidator {
 
   private val SPOTIFY_API_BASE_URI = "https://api.spotify.com/v1"
 
@@ -57,7 +57,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) {
     go(accessToken, playlistId, fromTs)
   }
 
-  def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
+  override def maybeExtractPlaylistFromUrl(url: String): Option[Playlist] = {
     val spotifyPlaylistIdPattern = """.*/playlist/(.*?)(\?.*)?""".r
     val maybePlaylistId = url match {
       case spotifyPlaylistIdPattern(playlistId, _) => Some(playlistId)
@@ -80,7 +80,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) {
       }
   }
 
-  def maybeExtractTrackFromUrl(url: String): Option[Track] = {
+  override def maybeExtractTrackFromUrl(url: String): Option[Track] = {
     val spotifyTrackIdPattern = """.*/track/(.*?)(\?.*)?""".r
     val maybeTrackId = url match {
       case spotifyTrackIdPattern(trackId, _) => Some(trackId)
