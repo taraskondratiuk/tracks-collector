@@ -55,7 +55,7 @@ class Bot(token: String,
         "/add <Spotify/Youtube playlist url>",
         "/remove <playlist number to remove>",
         "/list",
-        "/download <Spotify/Youtube playlist/track url>",
+        "/download <Spotify/Youtube playlist/track/album url>",
       )
       sendTextMsg(
         chat.getId.toString,
@@ -99,8 +99,8 @@ class Bot(token: String,
         case Nil =>
           sendTextMsg(
             chat.getId.toString,
-            "/download command requires Spotify/Youtube playlist/track url in format" +
-              "\n/download <Spotify/Youtube playlist/track url>",
+            "/download command requires Spotify/Youtube playlist/track/album url in format" +
+              "\n/download <Spotify/Youtube playlist/track/album url>",
             absSender,
           )
         case url :: _ =>
