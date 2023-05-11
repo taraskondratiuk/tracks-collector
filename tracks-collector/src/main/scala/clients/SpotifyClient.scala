@@ -38,7 +38,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
                       subUrl: String,
                       pageUrl: Option[String] = None,
                      ): Either[io.circe.Error, TracksPageResponse] = {
-      val url = pageUrl.getOrElse(s"$SPOTIFY_API_BASE_URI/playlists/$playlistId/$subUrl")
+      val url = pageUrl.getOrElse(s"$SPOTIFY_API_BASE_URI/$subUrl/$playlistId/tracks")
       val resp: HttpResponse[String] = Http(url)
         .header("Authorization", s"Bearer $accessToken")
         .asString
