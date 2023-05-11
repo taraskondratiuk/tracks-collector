@@ -17,9 +17,17 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
 
   private case class PlaylistResponse(name: String)
 
-  private case class TracksPageResponse(items: Seq[SpotifyItem], next: Option[String])
+  private sealed trait Response {
+    def next: Option[String]
+  }
 
-  private case class SpotifyItem(track: SpotifyTrack, added_at: String)
+  private case class PlaylistPageResponse(items: Seq[PlaylistItem], next: Option[String]) extends Response
+
+  private case class AlbumPageResponse(items: Seq[AlbumItem], next: Option[String]) extends Response
+
+  private case class AlbumItem(external_urls: ExternalUrls)
+
+  private case class PlaylistItem(track: SpotifyTrack, added_at: String)
 
   private case class SpotifyTrack(external_urls: ExternalUrls)
 
@@ -34,10 +42,10 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
   def getSpotifyTrackUrlsFromPlaylist(playlistId: String, fromTs: Long): Seq[String] = {
     val accessToken = getAccessToken
 
-    def getTracksPage(playlistId: String,
-                      subUrl: String,
-                      pageUrl: Option[String] = None,
-                     ): Either[io.circe.Error, TracksPageResponse] = {
+    def getTracksPage[T <: Response](playlistId: String,
+                                     subUrl: String,
+                                     pageUrl: Option[String] = None,
+                                    ): Either[io.circe.Error, Response] = {
       val url = pageUrl.getOrElse(s"$SPOTIFY_API_BASE_URI/$subUrl/$playlistId/tracks")
       val resp: HttpResponse[String] = Http(url)
         .header("Authorization", s"Bearer $accessToken")
@@ -45,7 +53,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
       import io.circe.generic.auto._
 
       log.info(s"tracks page response: ${resp.body}")
-      parse(resp.body).flatMap(json => json.as[TracksPageResponse])
+      parse(resp.body).flatMap(json => json.as[T])
     }
 
     @tailrec
@@ -55,13 +63,17 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
            pageUrl: Option[String] = None,
            acc: Seq[String] = Seq.empty,
           ): Seq[String] = {
-      val tracksPage = getTracksPage(playlistId, "playlists", pageUrl)
-        .orElse(getTracksPage(playlistId, "albums", pageUrl))
+      val tracksPage = getTracksPage[PlaylistPageResponse](playlistId, "playlists", pageUrl)
+        .orElse(getTracksPage[AlbumPageResponse](playlistId, "albums", pageUrl))
         .fold(err => throw new Exception(s"failed to get tracks page, error: $err"), p => p)
-      val allTrackUrls = acc ++ tracksPage
-        .items
-        .filter(v => DateUtil.stringDateToEpochSecond(v.added_at) >= fromTs)
-        .map(_.track.external_urls.spotify)
+      val allTrackUrls = acc ++ (tracksPage match {
+        case PlaylistPageResponse(items, _) =>
+          items
+            .filter(v => DateUtil.stringDateToEpochSecond (v.added_at) >= fromTs)
+            .map(_.track.external_urls.spotify)
+        case AlbumPageResponse(items, _)    =>
+          items.map(_.external_urls.spotify)
+      })
       tracksPage.next match {
         case None           => allTrackUrls
         case Some(nextPage) => go(accessToken, playlistId, fromTs, Some(nextPage), allTrackUrls)
