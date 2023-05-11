@@ -1,5 +1,6 @@
 package clients
 
+import com.typesafe.scalalogging.Logger
 import io.circe.parser.parse
 import models.{Playlist, SpotifySource, Track}
 import scalaj.http.{Base64, Http, HttpResponse}
@@ -8,6 +9,8 @@ import utils.DateUtil
 import scala.annotation.tailrec
 
 class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extends UrlValidator {
+
+  private val log = Logger(this.getClass.getSimpleName)
 
   private val SPOTIFY_API_BASE_URI = "https://api.spotify.com/v1"
 
@@ -75,6 +78,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
             .fold(err => throw new Exception(s"failed to get playlist page, error: $err, response: $resp"), p => p)
           Some(Playlist(pId, url, playlist.name, SpotifySource, 0L))
         } else {
+          log.warn(s"error spotify playlist api response: $resp")
           None
         }
       }
@@ -98,6 +102,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
             .fold(err => throw new Exception(s"failed to get track page, error: $err, response: $resp"), p => p)
           Some(Track(trackId, url, s"${track.album.artists.map(_.name).mkString(", ")} - ${track.name}", SpotifySource))
         } else {
+          log.warn(s"error spotify track api response: $resp")
           None
         }
       }
