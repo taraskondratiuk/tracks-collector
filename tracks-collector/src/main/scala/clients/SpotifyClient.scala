@@ -1,7 +1,8 @@
 package clients
 
 import com.typesafe.scalalogging.Logger
-import io.circe.DecodingFailure
+import io.circe.generic.semiauto.{deriveCodec, deriveDecoder}
+import io.circe.{Decoder, DecodingFailure}
 import io.circe.parser.parse
 import models.{Playlist, SpotifySource, Track}
 import scalaj.http.{Base64, Http, HttpResponse}
@@ -45,15 +46,15 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
     def getTracksPage[T <: Response](playlistId: String,
                                      subUrl: String,
                                      pageUrl: Option[String] = None,
+                                     decoder: Decoder[T],
                                     ): Either[io.circe.Error, Response] = {
       val url = pageUrl.getOrElse(s"$SPOTIFY_API_BASE_URI/$subUrl/$playlistId/tracks")
       val resp: HttpResponse[String] = Http(url)
         .header("Authorization", s"Bearer $accessToken")
         .asString
-      import io.circe.generic.auto._
 
       log.info(s"tracks page response: ${resp.body}")
-      parse(resp.body).flatMap(json => json.as[T])
+      parse(resp.body).flatMap(json => json.as[T](decoder))
     }
 
     @tailrec
@@ -63,8 +64,9 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
            pageUrl: Option[String] = None,
            acc: Seq[String] = Seq.empty,
           ): Seq[String] = {
-      val tracksPage = getTracksPage[PlaylistPageResponse](playlistId, "playlists", pageUrl)
-        .orElse(getTracksPage[AlbumPageResponse](playlistId, "albums", pageUrl))
+      import io.circe.generic.auto._
+      val tracksPage = getTracksPage[PlaylistPageResponse](playlistId, "playlists", pageUrl, deriveDecoder[PlaylistPageResponse])
+        .orElse(getTracksPage[AlbumPageResponse](playlistId, "albums", pageUrl, deriveDecoder[AlbumPageResponse]))
         .fold(err => throw new Exception(s"failed to get tracks page, error: $err"), p => p)
       val allTrackUrls = acc ++ (tracksPage match {
         case PlaylistPageResponse(items, _) =>
