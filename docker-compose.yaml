@@ -44,3 +44,5 @@ services:
 
 networks:
   tracks-collector-net:
+    name: $NETWORK_NAME
+    external: true
