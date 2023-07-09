@@ -163,7 +163,7 @@ class MongoPersistenceClient(mongoUri: String) extends PersistenceClient {
       )
     } match {
       case Success(_) =>
-        log.info(s"removed playlist $recordType for chatId $chatId")
+        log.info(s"removed $recordType for chatId $chatId")
         SuccessfulResponse(())
       case Failure(e) =>
         log.warn(s"failed to remove $recordType with id ${_id}: ${e.getMessage}")
