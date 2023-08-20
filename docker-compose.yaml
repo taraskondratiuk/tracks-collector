@@ -23,6 +23,12 @@ services:
       - mongodb
     volumes:
       - $LOGS_VOLUME:/tracks-collector-log
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
 
   mongodb:
     image:
@@ -41,6 +47,12 @@ services:
       - $MONGO_VOLUME:/data/db
     ports:
       - '27017-27019:27017-27019'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        tag: "{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}"
 
 networks:
   tracks-collector-net:
