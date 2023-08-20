@@ -53,7 +53,7 @@ class SpotifyClient(spotifyClientId: String, spotifyClientSecret: String) extend
         .header("Authorization", s"Bearer $accessToken")
         .asString
 
-      log.info(s"tracks page response: ${resp.body}")
+      log.debug(s"tracks page response: ${resp.body}")
       parse(resp.body).flatMap(json => json.as[T](decoder))
     }
 
